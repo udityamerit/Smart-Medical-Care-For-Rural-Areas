@@ -864,7 +864,7 @@ copies or substantial portions of the Software.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 ### **Inspiration & Resources**
 - [Flask Documentation](https://flask.palletsprojects.com/)
