@@ -89,7 +89,6 @@ def train_and_save_model(data_filepath, df_path, collection_name="medicines"):
     print(f"Embeddings stored in 'chroma_db' folder. Collection: {collection_name}")
     print("You can now run 'app.py'.")
 
-
 if __name__ == '__main__':
     DATA_FILE = "Datasets/final_medicine_dataset_with_age_group.csv"
     DATAFRAME_FILE = 'processed_data.pkl'
