@@ -10,7 +10,10 @@
 [![Flask](https://img.shields.io/badge/Flask-2.0+-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
-**[View Demo](#-live-demo) · [Report Bug](https://github.com/udityamerit/AIOPharmacy/issues) · [Request Feature](https://github.com/udityamerit/AIOPharmacy/issues)**
+
+**[View Demo](live-demo) 
+· [Report Bug](https://github.com/udityamerit/AIOPharmacy/issues) 
+· [Request Feature](https://github.com/udityamerit/AIOPharmacy/issues)**
 
 </div>
 
