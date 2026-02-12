@@ -51,7 +51,7 @@ To democratize access to pharmaceutical information and empower individuals to m
 
 ### ✅ Solution
 
-AIOPharmacy leverages **TF-IDF vectorization** and **Cosine Similarity algorithms** to create an intelligent recommendation engine that:
+AIOPharmacy leverages **Sentence Transformer** and **Maximal Marginal Relevance (MMR) algorithms** to create an intelligent recommendation engine that:
 - Matches symptoms to appropriate medications with high accuracy
 - Provides comprehensive medicine information and alternatives
 - Delivers instant results through an intuitive interface
@@ -65,7 +65,7 @@ AIOPharmacy leverages **TF-IDF vectorization** and **Cosine Similarity algorithm
 - **Symptom-Based Recommendations**: Enter symptoms like "fever and headache" to get relevant medicines
 - **Medicine Name Search**: Find similar alternatives to any medication
 - **Smart Matching Algorithm**: Uses NLP to understand context and provide accurate results
-- **Threshold-Based Filtering**: Only shows medicines above similarity threshold for quality results
+
 
 ### 🎤 **Voice Recognition**
 - **Speech-to-Text**: Speak your symptoms instead of typing
@@ -189,6 +189,7 @@ graph TB
     style G fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
     style M fill:#f39c12,stroke:#e67e22,stroke-width:2px,color:#fff
 ```
+---
 
 ### **Simplified Data Flow Architecture**
 
@@ -252,7 +253,7 @@ flowchart TD
     class DB,MODEL database
     class VECTORIZE,SIMILARITY ml
 ```
-
+---
 ### **Component Interaction Diagram**
 
 ```mermaid
@@ -282,82 +283,69 @@ sequenceDiagram
     UI-->>User: Display Recommendations
 ```
 
-### **Step-by-Step Process Flow**
+---
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 1: USER INPUT                                          │
-├─────────────────────────────────────────────────────────────┤
-│ • User types: "headache and fever"                          │
-│ • OR speaks via microphone                                  │
-│ • Input captured and sent to server                         │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 2: AUTHENTICATION & VALIDATION                         │
-├─────────────────────────────────────────────────────────────┤
-│ • Check if user is logged in                                │
-│ • Validate input is not empty                               │
-│ • Sanitize input for security                               │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 3: TEXT PREPROCESSING                                  │
-├─────────────────────────────────────────────────────────────┤
-│ • Convert to lowercase: "headache and fever"                │
-│ • Remove special characters                                 │
-│ • Tokenization: ["headache", "and", "fever"]                │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 4: TF-IDF VECTORIZATION                                │
-├─────────────────────────────────────────────────────────────┤
-│ • Load pre-trained vectorizer                               │
-│ • Transform text to numerical vector                        │
-│ • Vector shape: [1 x 5000] (5000 features)                  │
-│ • Example: [0.0, 0.34, 0.0, 0.67, ...]                      │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 5: COSINE SIMILARITY CALCULATION                       │
-├─────────────────────────────────────────────────────────────┤
-│ • Compare query vector with all medicine vectors            │
-│ • Calculate similarity scores (0 to 1)                      │
-│ • Example results:                                          │
-│   - Paracetamol: 0.87                                       │
-│   - Aspirin: 0.75                                           │
-│   - Ibuprofen: 0.68                                         │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 6: RANKING & FILTERING                                 │
-├─────────────────────────────────────────────────────────────┤
-│ • Sort medicines by similarity score                        │
-│ • Filter: Keep only scores > 0.1 (threshold)                │
-│ • Select top 10 matches                                     │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 7: FETCH ADDITIONAL DETAILS                            │
-├─────────────────────────────────────────────────────────────┤
-│ • Get best match (rank #1)                                  │
-│ • Fetch 5 brand substitutes                                 │
-│ • Get 9 other similar medicines                             │
-│ • Retrieve age group information                            │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ STEP 8: DISPLAY RESULTS                                     │
-├─────────────────────────────────────────────────────────────┤
-│ ✓ Best Match: Paracetamol                                   │
-│   - Description: Pain reliever and fever reducer            │
-│   - Reason: Fever, Pain, Headache                           │
-│   - Age Group: Adult                                        │
-│                                                             │
-│ ✓ Substitutes: Crocin, Dolo, Calpol, Tylenol               │
-│                                                             │
-│ ✓ Other Similar: Aspirin, Ibuprofen, Combiflam...          │
-└─────────────────────────────────────────────────────────────┘
+## **Data Flow Diagram**
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inter, roboto, sans-serif', 'nodeSpacing': 60, 'rankSpacing': 50, 'clusterBkg': '#fcfcfc', 'clusterBorder': '#e0e0e0'}}}%%
+graph TD
+    subgraph System_Process_Backend [Medicine Recommendation Engine Flow]
+    
+        %% Node Definitions
+        A[STEP 1: User Input]
+        B[STEP 2: Auth & Validation]
+        C[STEP 3: Text Preprocessing]
+        D[STEP 4: Sentence Transformer Encoding]
+        
+        E{STEP 5: Cosine Similarity}
+        E1["Sc(A,B) = (A ⋅ B) / (||A|| ||B||)"]
+
+        F{STEP 6: MMR Reranking}
+        F1["MMR = λ(Sim1) - (1-λ)(max Sim2)"]
+
+        G[STEP 7: Ranking & Data Fetching]
+        H[STEP 8: Display Diverse Results]
+
+        %% Connections
+        A --> B
+        B --> C
+        C --> D
+        D --> E
+        
+        subgraph Similarity_Logic [Similarity Metrics]
+            direction TB
+            E --- E1
+        end
+
+        E --> F
+        
+        subgraph Diversity_Logic [Diversification Logic]
+            direction TB
+            F --- F1
+        end
+
+        F --> G
+        G --> H
+    end
+
+    %% Professional High-Contrast Styling
+    style System_Process_Backend fill:#ffffff,stroke:#d1d5db,stroke-width:2px,color:#374151
+    
+    style A fill:#f9fafb,stroke:#374151,stroke-width:1px
+    style B fill:#f9fafb,stroke:#374151,stroke-width:1px
+    style C fill:#f9fafb,stroke:#374151,stroke-width:1px
+    style D fill:#f9fafb,stroke:#374151,stroke-width:1px
+    
+    style E fill:#eff6ff,stroke:#2563eb,stroke-width:2px,color:#1e40af
+    style E1 fill:#ffffff,stroke:#2563eb,stroke-dasharray: 5 5,color:#1e40af
+    
+    style F fill:#f5f3ff,stroke:#7c3aed,stroke-width:2px,color:#5b21b6
+    style F1 fill:#ffffff,stroke:#7c3aed,stroke-dasharray: 5 5,color:#5b21b6
+    
+    style G fill:#f9fafb,stroke:#374151,stroke-width:1px
+    style H fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#166534
+
 ```
 
 ---
