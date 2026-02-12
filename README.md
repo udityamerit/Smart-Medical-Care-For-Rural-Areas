@@ -288,63 +288,68 @@ sequenceDiagram
 ## **Data Flow Diagram**
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inter, roboto, sans-serif', 'nodeSpacing': 60, 'rankSpacing': 50, 'clusterBkg': '#fcfcfc', 'clusterBorder': '#e0e0e0'}}}%%
+%%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inter', 'background': '#000000', 'primaryColor': '#ffffff', 'mainBkg': '#000000', 'nodeBorder': '#ffffff', 'lineColor': '#ffffff'}}}%%
 graph TD
-    subgraph System_Process_Backend [Medicine Recommendation Engine Flow]
+    %% Node Definitions
+    A[STEP 1: User Input]
+    B[STEP 2: Auth & Validation]
+    C[STEP 3: Text Preprocessing]
+    D[STEP 4: Sentence Transformer Encoding]
     
-        %% Node Definitions
-        A[STEP 1: User Input]
-        B[STEP 2: Auth & Validation]
-        C[STEP 3: Text Preprocessing]
-        D[STEP 4: Sentence Transformer Encoding]
-        
-        E{STEP 5: Cosine Similarity}
-        E1["Sc(A,B) = (A ⋅ B) / (||A|| ||B||)"]
+    E{STEP 5: Cosine Similarity}
+    E1["Sc(A,B) = (A ⋅ B) / (||A|| ||B||)"]
 
-        F{STEP 6: MMR Reranking}
-        F1["MMR = λ(Sim1) - (1-λ)(max Sim2)"]
+    F{STEP 6: MMR Reranking}
+    F1["MMR = λ(Sim1) - (1-λ)(max Sim2)"]
 
-        G[STEP 7: Ranking & Data Fetching]
-        H[STEP 8: Display Diverse Results]
+    G[STEP 7: Ranking & Data Fetching]
+    H[STEP 8: Display Diverse Results]
 
-        %% Connections
-        A --> B
-        B --> C
-        C --> D
-        D --> E
-        
-        subgraph Similarity_Logic [Similarity Metrics]
-            direction TB
-            E --- E1
-        end
-
-        E --> F
-        
-        subgraph Diversity_Logic [Diversification Logic]
-            direction TB
-            F --- F1
-        end
-
-        F --> G
-        G --> H
+    %% Connections with Colored Arrows
+    A -->|Validate| B
+    B -->|Clean| C
+    C -->|Vectorize| D
+    D -->|Compute| E
+    
+    subgraph Similarity_Logic [ ]
+        direction TB
+        E --> E1
     end
 
-    %% Professional High-Contrast Styling
-    style System_Process_Backend fill:#ffffff,stroke:#d1d5db,stroke-width:2px,color:#374151
+    E -->|Diversify| F
     
-    style A fill:#f9fafb,stroke:#374151,stroke-width:1px
-    style B fill:#f9fafb,stroke:#374151,stroke-width:1px
-    style C fill:#f9fafb,stroke:#374151,stroke-width:1px
-    style D fill:#f9fafb,stroke:#374151,stroke-width:1px
+    subgraph Diversity_Logic [ ]
+        direction TB
+        F --> F1
+    end
+
+    F -->|Sort| G
+    G -->|Output| H
+
+    %% Dark Mode Styling (Transparent Backgrounds)
+    style Similarity_Logic fill:none,stroke:none
+    style Diversity_Logic fill:none,stroke:none
     
-    style E fill:#eff6ff,stroke:#2563eb,stroke-width:2px,color:#1e40af
-    style E1 fill:#ffffff,stroke:#2563eb,stroke-dasharray: 5 5,color:#1e40af
+    %% Step Styles (Neon Borders, Black Backgrounds, White Text)
+    style A fill:#000000,stroke:#5c5c5c,stroke-width:1px,color:#ffffff
+    style B fill:#000000,stroke:#5c5c5c,stroke-width:1px,color:#ffffff
+    style C fill:#000000,stroke:#5c5c5c,stroke-width:1px,color:#ffffff
+    style D fill:#000000,stroke:#5c5c5c,stroke-width:1px,color:#ffffff
     
-    style F fill:#f5f3ff,stroke:#7c3aed,stroke-width:2px,color:#5b21b6
-    style F1 fill:#ffffff,stroke:#7c3aed,stroke-dasharray: 5 5,color:#5b21b6
+    style E fill:#000000,stroke:#2563eb,stroke-width:2px,color:#60a5fa
+    style E1 fill:#000000,stroke:#2563eb,stroke-dasharray: 5 5,color:#60a5fa
     
-    style G fill:#f9fafb,stroke:#374151,stroke-width:1px
-    style H fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#166534
+    style F fill:#000000,stroke:#7c3aed,stroke-width:2px,color:#a78bfa
+    style F1 fill:#000000,stroke:#7c3aed,stroke-dasharray: 5 5,color:#a78bfa
+    
+    style G fill:#000000,stroke:#5c5c5c,stroke-width:1px,color:#ffffff
+    style H fill:#000000,stroke:#16a34a,stroke-width:2px,color:#4ade80
+
+    %% Colored Arrows (linkStyle)
+    linkStyle 0,1,2,3 stroke:#94a3b8,stroke-width:2px;
+    linkStyle 5 stroke:#2563eb,stroke-width:2px;
+    linkStyle 7 stroke:#7c3aed,stroke-width:2px;
+    linkStyle 8 stroke:#16a34a,stroke-width:2px;
 
 ```
 
