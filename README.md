@@ -654,92 +654,128 @@ OUTPUT: Display top medicine with 5 brand alternatives
 | No similarity detection | Finds similar medicines |
 | Manual filtering needed | Auto-ranked by relevance |
 
+---
+
 ## 🧠 Machine Learning Model
 
-### **Algorithm Overview**
+### **Core Algorithm: Sentence Transformers**
+Unlike traditional keyword matching (TF-IDF), **AIOPharmacy** utilizes **Sentence Transformers (Bi-Encoders)** to achieve deep semantic understanding. This architecture is optimized for retrieval tasks where speed and context are critical.
 
-#### **TF-IDF (Term Frequency-Inverse Document Frequency)**
+* **Deep Semantic Mapping**: Symptoms are converted into **384-dimensional dense vectors**.
+* **Contextual Awareness**: The model understands that *"throbbing head"* is semantically similar to *"headache"*, even if the words don't match exactly.
+* **Pre-trained Excellence**: Uses the `all-MiniLM-L6-v2` model, optimized for speed and accuracy in real-time pharmaceutical applications.
 
-TF-IDF converts text into numerical features by considering:
-- **Term Frequency (TF)**: How often a term appears in a document
-- **Inverse Document Frequency (IDF)**: How unique a term is across all documents
 
-**Formula:**
-```
-TF-IDF(t, d) = TF(t, d) × IDF(t)
 
-where:
-TF(t, d) = (Number of times term t appears in document d) / (Total terms in document d)
-IDF(t) = log(Total documents / Documents containing term t)
-```
+---
 
-#### **Cosine Similarity**
+### **Metric: Cosine Similarity**
+To determine how closely a user's symptoms match a medication in our database, we calculate the cosine of the angle between their respective vectors.
 
-Measures similarity between two vectors using the cosine of the angle between them.
+**Mathematical Formula:**
 
-**Formula:**
-```
-similarity = (A · B) / (||A|| × ||B||)
+$$
+S_c(A,B) = \cos(\theta) = \frac{A \cdot B}{\|A\| \|B\|} = \frac{\sum_{i=1}^{n} A_i B_i}{\sqrt{\sum_{i=1}^{n} A_i^2} \sqrt{\sum_{i=1}^{n} B_i^2}}
+$$
 
-where:
-A · B = dot product of vectors A and B
-||A||, ||B|| = magnitude of vectors A and B
-```
+* **Range**: $0$ to $1$ (for non-negative vectors like embeddings).
+* **Interpretation**: A score of $1.0$ indicates identical semantic meaning, while $0$ indicates no relation.
 
-**Range**: 0 (completely different) to 1 (identical)
+
+
+---
+
+### **Diversification: Maximal Marginal Relevance (MMR)**
+Standard similarity searches often result in redundancy (e.g., showing 10 different brands of Paracetamol). We solve this by implementing the **MMR Algorithm**, which re-ranks results to balance relevance with diversity.
+
+**The MMR Formula:**
+
+$$
+MMR = \arg \max_{D_i \in R \setminus S} \left[ \lambda \cdot \text{Sim}(D_i, Q) - (1 - \lambda) \cdot \max_{D_j \in S} \text{Sim}(D_i, D_j) \right]
+$$
+
+* **Relevance ($\lambda$):** How well the medicine ($D_i$) matches the query ($Q$).
+* **Diversity ($1-\lambda$):** How different the medicine is from those already selected ($S$).
+* **Balance:** We set $\lambda = 0.5$ to ensure users receive a diverse list of treatments (e.g., an analgesic, an anti-inflammatory, and a combination drug) rather than repetitive brands.
+
+
+
+---
 
 ### **Implementation Details**
 
-#### **Data Preprocessing**
+#### **1. Data Preprocessing**
 ```python
-# Combine relevant fields into 'soup'
+from sentence_transformers import SentenceTransformer
+
+# Create semantic "soup" by combining relevant metadata
 df['soup'] = df['name'] + ' ' + df['description'] + ' ' + df['reason']
 
-# Create TF-IDF matrix
-tfidf = TfidfVectorizer(stop_words='english')
-tfidf_matrix = tfidf.fit_transform(df['soup'])
+# Initialize the Transformer model
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Generate dense embeddings for the entire database
+medicine_embeddings = model.encode(df['soup'].tolist(), show_progress_bar=True)
+
 ```
 
-#### **Recommendation Process**
+#### **2. Recommendation Process (MMR Function)**
+
 ```python
-# Transform user query
-query_vec = vectorizer.transform([user_query])
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Calculate similarities
-cosine_similarities = cosine_similarity(query_vec, tfidf_matrix)
+def apply_mmr(query_embedding, document_embeddings, lambda_param=0.5, top_k=10):
+    """
+    Calculates Maximal Marginal Relevance for diverse medicine recommendation.
+    """
+    # 1. Calculate cosine similarity between query and all docs
+    query_sims = cosine_similarity(query_embedding, document_embeddings)[0]
+    
+    selected_indices = []
+    remaining_indices = list(range(len(document_embeddings)))
+    
+    # 2. Start with the single most relevant document
+    first_idx = np.argmax(query_sims)
+    selected_indices.append(first_idx)
+    remaining_indices.remove(first_idx)
+    
+    # 3. Iteratively select the next best candidate that maximizes MMR
+    while len(selected_indices) < top_k:
+        mmr_scores = []
+        for i in remaining_indices:
+            # Relevance term
+            relevance = query_sims[i]
+            
+            # Diversity term: Max similarity to any already-selected item
+            redundancy = max([cosine_similarity([document_embeddings[i]], 
+                             [document_embeddings[j]])[0][0] for j in selected_indices])
+            
+            # Combined MMR Score
+            score = lambda_param * relevance - (1 - lambda_param) * redundancy
+            mmr_scores.append((i, score))
+        
+        # Select item with highest MMR score
+        next_best = max(mmr_scores, key=lambda x: x[1])[0]
+        selected_indices.append(next_best)
+        remaining_indices.remove(next_best)
+        
+    return selected_indices
 
-# Get top matches above threshold
-top_matches = similarities[similarities > THRESHOLD]
 ```
 
-### **Model Performance**
+---
 
-- **Dataset Size**: 10,000+ medicines
-- **Feature Dimensions**: ~5,000 unique terms
-- **Average Response Time**: <500ms
-- **Similarity Threshold**: 0.1 (configurable)
-- **Top Recommendations**: 10 per query
-- **Accuracy**: 85-90% user satisfaction rate
+### **Why Sentence Transformers + MMR?**
 
-### **Why TF-IDF + Cosine Similarity?**
+| Feature | Traditional TF-IDF | AIOPharmacy (Transformer + MMR) |
+| --- | --- | --- |
+| **Logic** | Exact Word Overlap | Semantic Intent & Meaning |
+| **Variety** | Redundant (Shows same salt) | Diverse (Shows different salts/classes) |
+| **Context** | Fails on "feeling hot" | Maps "feeling hot" to "fever" |
+| **Search Type** | Keyword-based | Context-aware Semantic Search |
 
-**Advantages:**
-- ✅ Fast computation (real-time results)
-- ✅ No training required (uses pre-computed matrix)
-- ✅ Handles synonyms and related terms
-- ✅ Scalable to large datasets
-- ✅ Interpretable results
-
-**Comparison with Other Approaches:**
-
-| Method | Speed | Accuracy | Complexity | Our Choice |
-|--------|-------|----------|------------|------------|
-| Exact Match | ⚡⚡⚡ | ⭐⭐ | Simple | ❌ |
-| TF-IDF + Cosine | ⚡⚡ | ⭐⭐⭐⭐ | Medium | ✅ |
-| Deep Learning | ⚡ | ⭐⭐⭐⭐⭐ | Complex | Future |
-| BERT/Transformers | ⚡ | ⭐⭐⭐⭐⭐ | Very Complex | Future |
-
-
+---
 ### **Deployment Architecture**
 
 ```mermaid
