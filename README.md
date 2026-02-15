@@ -467,9 +467,10 @@ http://localhost:5000
 
 #### **1. Creating an Account**
 1. Navigate to the login page
-2. Select your role (User/Pharmacist/Hospital/Vendor)
+2. Select your role (User/Pharmacist/Hospital/Vendors)
 3. Click "Sign Up" and enter credentials
 4. You'll be automatically logged in
+
 
 #### **2. Searching for Medicines**
 
