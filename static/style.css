@@ -467,25 +467,84 @@ button:hover {
 .contact-form { flex-direction: column; }
 
 /* --- Medicines Page --- */
-.medicine-grid {
+.category-header {
+    font-size: 2rem;
+    color: var(--accent-color);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 10px;
+    margin-top: 50px;
+    margin-bottom: 30px;
+    text-transform: capitalize;
+}
+
+.medicine-grid-2-col {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
-    gap: 25px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 30px;
+    margin-bottom: 50px;
+}
+
+@media (max-width: 768px) {
+    .medicine-grid-2-col {
+        grid-template-columns: 1fr;
+    }
+}
+
+.medicine-details-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+    background: rgba(0,0,0,0.2);
+    padding: 20px;
+    border-radius: 12px;
+    margin: 15px 0;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.detail-label {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 5px;
+    letter-spacing: 0.8px;
+}
+
+.detail-value {
+    color: var(--text-primary);
+    font-size: 0.95em;
+    line-height: 1.5;
 }
 
 .medicine-list-card {
-    background-color: var(--card-bg);
+    background: linear-gradient(145deg, rgba(27, 38, 59, 0.9), rgba(15, 23, 42, 0.95));
     padding: 25px;
-    border-radius: 10px;
+    border-radius: 16px;
     text-align: center;
-    border: 1px solid rgba(0, 170, 255, 0.15);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid var(--border-color);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    color: var(--text-primary);
 }
 
 .medicine-list-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-6px);
     border-color: var(--accent-color);
-    box-shadow: 0 8px 25px rgba(0, 170, 255, 0.15);
+    box-shadow: 0 20px 30px -10px rgba(0, 170, 255, 0.2);
+}
+
+.medicine-list-card h3 {
+    color: var(--accent-color);
+    font-size: 1.4rem;
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(0, 170, 255, 0.2);
+    padding-bottom: 10px;
+    letter-spacing: 0.5px;
 }
 
 /* --- Showcase CTA --- */
@@ -515,20 +574,101 @@ button:hover {
 }
 
 .medicine-card, .medicine-card-small {
-    background-color: var(--card-bg);
+    background: linear-gradient(145deg, rgba(27, 38, 59, 0.9), rgba(15, 23, 42, 0.95));
     padding: 30px;
-    border-radius: 12px;
+    border-radius: 16px;
     margin-bottom: 30px;
     border-left: 4px solid var(--accent-color);
-    transition: all 0.3s ease;
+    border-top: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    color: var(--text-primary);
 }
 
 .medicine-card:hover, .medicine-card-small:hover {
-    transform: translateX(5px);
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+    transform: translateY(-6px);
+    border-left-color: var(--accent-color);
+    border-top-color: var(--accent-color);
+    border-right-color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+    box-shadow: 0 20px 30px -10px rgba(0, 170, 255, 0.2);
 }
 
-.medicine-card h3 { margin-top: 0; color: var(--accent-color); font-size: 1.5rem; }
+.medicine-card h3, .medicine-card-small h3 { 
+    margin-top: 0; 
+    color: var(--accent-color); 
+    font-size: 1.5rem; 
+    margin-bottom: 12px;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(0, 170, 255, 0.2);
+    padding-bottom: 10px;
+    letter-spacing: 0.5px;
+}
+
+.medicine-card p, .medicine-card-small p {
+    font-size: 0.95em;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.medicine-card strong, .medicine-card-small strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+/* Modifier: Cyan Theme (Root Cause) */
+.card-theme-cyan {
+    border-left-color: #00cefc;
+    border-color: rgba(0, 206, 252, 0.3);
+}
+.card-theme-cyan:hover {
+    border-color: #00cefc;
+    box-shadow: 0 20px 30px -10px rgba(0, 206, 252, 0.25);
+}
+.card-theme-cyan h3 {
+    color: #00cefc;
+    border-bottom-color: rgba(0, 206, 252, 0.2);
+}
+.card-theme-cyan .tag-label {
+    background: rgba(0, 206, 252, 0.15);
+    color: #00cefc;
+}
+
+/* Modifier: Green Theme (Previous Searches) */
+.card-theme-green {
+    border-left-color: #1aff00;
+    border-color: rgba(26, 255, 0, 0.3);
+}
+.card-theme-green:hover {
+    border-color: #1aff00;
+    box-shadow: 0 20px 30px -10px rgba(26, 255, 0, 0.2);
+}
+.card-theme-green h3 {
+    color: #1aff00;
+    border-bottom-color: rgba(26, 255, 0, 0.2);
+}
+.card-theme-green .tag-label {
+    background: rgba(26, 255, 0, 0.15);
+    color: #1aff00;
+}
+
+/* Age group / Tag Label */
+.tag-label {
+    display: inline-block;
+    background: rgba(0, 170, 255, 0.15);
+    color: var(--accent-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 5px;
+}
 
 .substitutes-list { list-style-type: none; padding: 0; }
 .substitutes-list li { 
@@ -563,10 +703,11 @@ button:hover {
     border-radius: 8px; 
     cursor: pointer; 
 }
-.medicine-card-small { 
-    border-left: 1px solid var(--border-color);
+.medicine-card-small {
+    padding: 22px;
+    margin-bottom: 0;
 }
-.medicine-card-small h3 { margin-top: 0; color: var(--text-primary); font-size: 1.2rem; }
+.medicine-card-small h3 { font-size: 1.3rem; }
 
 /* --- Animations (Retained as backup) --- */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

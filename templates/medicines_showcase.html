@@ -8,20 +8,29 @@
 </section>
 
 <div class="container">
-    <div class="medicine-grid">
-        {% if medicines %}
-            {% for med in medicines %}
-                <div class="medicine-list-card">
-                    <h3>{{ med['name'] }}</h3>
-                    <p>{{ med['description'] }}</p>
-                    <p><strong>Reason for Use:</strong> {{ med['reason'] }}</p>
-                    <p><strong>Age Group:</strong> {{ med['age_group'] }}</p>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>No medicines to display at the moment.</p>
-        {% endif %}
-    </div>
+    {% if grouped_medicines %}
+        {% for age_group, meds in grouped_medicines.items() %}
+            <h2 class="category-header">{{ age_group | capitalize }} Medicines</h2>
+            <div class="medicine-grid-2-col">
+                {% for med in meds %}
+                    <div class="medicine-list-card">
+                        <h3>{{ med['name'] }}</h3>
+                        <div class="medicine-details-grid">
+                            <span class="detail-label">Description</span>
+                            <span class="detail-value">{{ med['description'] }}</span>
+                            <span class="detail-label" style="margin-top: 10px;">Reason for Use</span>
+                            <span class="detail-value">{{ med['reason'] }}</span>
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <span class="tag-label">{{ med['age_group'] }}</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No medicines to display at the moment.</p>
+    {% endif %}
 
     <div class="showcase-cta">
         <p>Want to see more and get personalized recommendations?</p>

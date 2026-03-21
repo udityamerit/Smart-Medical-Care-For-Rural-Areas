@@ -1,10 +1,15 @@
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import logging
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
 import csv
 import math
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_cors import CORS
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-# IMPORT THE NEW FUNCTION HERE
-from recommender import load_model_components, get_recommendations, get_substitutes, get_contextual_recommendations
+from recommender import load_model_components, get_recommendations, get_substitutes, get_contextual_recommendations, get_root_cause_match, get_previous_search_recommendations
 import pandas as pd
 import plotly.express as px
 import json
@@ -13,6 +18,8 @@ import os
 # --- App and Login Configuration ---
 app = Flask(__name__)
 app.secret_key = 'your_super_secret_key_change_this'
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 CORS(app)
 
 login_manager = LoginManager()
@@ -24,10 +31,11 @@ login_manager.login_message_category = 'info'
 USERS_FILE = 'users.json'
 
 class User(UserMixin):
-    def __init__(self, id, username, password):
+    def __init__(self, id, username, password, search_history=None):
         self.id = id
         self.username = username
         self.password = password
+        self.search_history = search_history if search_history is not None else []
 
 def load_users():
     if not os.path.exists(USERS_FILE):
@@ -35,7 +43,7 @@ def load_users():
     try:
         with open(USERS_FILE, 'r') as f:
             users_data = json.load(f)
-            return {id: User(id, data['username'], data['password']) for id, data in users_data.items()}
+            return {id: User(id, data['username'], data['password'], data.get('search_history', [])) for id, data in users_data.items()}
     except json.JSONDecodeError:
         print("Error: users.json is corrupted or empty. Creating a new one.")
         return {}
@@ -46,7 +54,7 @@ def load_users():
 
 def save_users(users_dict):
     try:
-        users_data = {id: {'username': user.username, 'password': user.password} for id, user in users_dict.items()}
+        users_data = {id: {'username': user.username, 'password': user.password, 'search_history': user.search_history} for id, user in users_dict.items()}
         with open(USERS_FILE, 'w') as f:
             json.dump(users_data, f, indent=4)
     except Exception as e:
@@ -103,15 +111,17 @@ def home():
 def medicines_showcase_page():
     if current_user.is_authenticated:
         return redirect(url_for('medicines_page'))
-    medicines_sample = []
     
+    grouped_medicines = {}
     if df is None or df.empty:
         flash('Sorry, the medicine database is currently unavailable.', 'info')
     else:
-        sample_size = min(10, len(df))
-        medicines_sample = df.sample(n=sample_size).to_dict('records')
+        for age_group in df['age_group'].dropna().unique():
+            group_df = df[df['age_group'] == age_group]
+            sample_size = min(4, len(group_df))
+            grouped_medicines[age_group] = group_df.sample(n=sample_size).to_dict('records')
         
-    return render_template('medicines_showcase.html', medicines=medicines_sample)
+    return render_template('medicines_showcase.html', grouped_medicines=grouped_medicines)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
@@ -161,33 +171,51 @@ def logout():
 def recommender_page():
     if request.method == 'POST':
         user_query = request.form.get('query')
+        return redirect(url_for('recommender_page', query=user_query))
 
-        if df is None or model is None or collection is None:
-            flash('Sorry, the recommendation service is currently unavailable. Please contact the administrator.', 'danger')
-            return render_template('index.html', error="Service unavailable.", query=user_query)
+    user_query = request.args.get('query')
 
-        if not user_query or user_query.isspace():
+    if df is None or model is None or collection is None:
+        flash('Sorry, the recommendation service is currently unavailable. Please contact the administrator.', 'danger')
+        return render_template('index.html', error="Service unavailable.", query=user_query)
+
+    if not user_query or user_query.isspace():
+        if request.args.get('query') == '':
             flash('Please enter a medicine name or a symptom to search.', 'info')
-            return render_template('index.html', recommendation=None, error=None, query=None)
+        return render_template('index.html', recommendation=None, error=None, query=None)
 
-        recommended_medicines = get_recommendations(user_query, df, model, collection)
+    recommended_medicines = get_recommendations(user_query, df, model, collection)
+    
+    # Manage robust search history to prevent duplicates upon reload
+    if not current_user.search_history or current_user.search_history[-1] != user_query:
+        if user_query in current_user.search_history:
+            current_user.search_history.remove(user_query)
+        current_user.search_history.append(user_query)
+        if len(current_user.search_history) > 5:
+            current_user.search_history.pop(0)
+        save_users(users)
         
-        if not recommended_medicines.empty:
-            top_recommendation = recommended_medicines.iloc[0].to_dict()
-            substitutes = get_substitutes(top_recommendation['name'], df)
-            other_recommendations = recommended_medicines.iloc[1:].to_dict('records') 
-            
-            # Pass all original data + query
-            return render_template('index.html', 
-                                   recommendation=top_recommendation, 
-                                   substitutes=substitutes, 
-                                   other_recommendations=other_recommendations, 
-                                   query=user_query)
+    previous_search_recommendations = pd.DataFrame()
+    # Explicitly pull previous history items (excluding current query)
+    previous_searches = [q for q in current_user.search_history if q != user_query]
+    if previous_searches:
+        previous_search_recommendations = get_previous_search_recommendations(previous_searches, df, model, collection)
+    
+    if not recommended_medicines.empty:
+        top_recommendation = recommended_medicines.iloc[0].to_dict()
+        substitutes = get_substitutes(top_recommendation['name'], df)
+        other_recommendations = recommended_medicines.iloc[1:].to_dict('records') 
         
-        error_message = f"Sorry, we couldn't find any close matches for '{user_query}'. Please check your spelling or try a different term."
-        return render_template('index.html', error=error_message, query=user_query)
-
-    return render_template('index.html', recommendation=None, error=None, query=None)
+        return render_template('index.html', 
+                                recommendation=top_recommendation, 
+                                substitutes=substitutes, 
+                                other_recommendations=other_recommendations, 
+                                previous_search_recommendations=previous_search_recommendations.to_dict('records') if not previous_search_recommendations.empty else [],
+                                previous_searches_list=previous_searches,
+                                query=user_query)
+    
+    error_message = f"Sorry, we couldn't find any close matches for '{user_query}'. Please check your spelling or try a different term."
+    return render_template('index.html', error=error_message, query=user_query)
 
 # --- NEW ROUTE FOR CONTEXTUAL/ASSOCIATED RECOMMENDATIONS ---
 @app.route('/recommended_medicines')
@@ -219,14 +247,16 @@ def contextual_recommendations():
 @app.route('/medicines')
 @login_required
 def medicines_page():
+    grouped_medicines = {}
     if df is None or df.empty:
         flash('Sorry, the medicine database is currently unavailable.', 'danger')
-        medicines = []
     else:
-        sample_size = min(20, len(df))
-        medicines = df.sample(n=sample_size).to_dict('records')
+        for age_group in df['age_group'].dropna().unique():
+            group_df = df[df['age_group'] == age_group]
+            sample_size = min(8, len(group_df))
+            grouped_medicines[age_group] = group_df.sample(n=sample_size).to_dict('records')
         
-    return render_template('medicines.html', medicines=medicines)
+    return render_template('medicines.html', grouped_medicines=grouped_medicines)
 
 @app.route('/contact')
 @login_required

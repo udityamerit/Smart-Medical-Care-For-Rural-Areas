@@ -1,3 +1,9 @@
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import logging
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
 import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -130,8 +136,8 @@ def get_contextual_recommendations(query, df, model, collection):
     Uses a broader search query and higher diversity (lower lambda) in MMR.
     """
     try:
-        # Augment query to find deeper associations (e.g. "Fever" -> "Fever causes associated conditions")
-        advanced_query = query + " associated conditions causes treatment"
+        # Lightly augment query to find deeper associations
+        advanced_query = query + " treatments conditions"
         
         query_vec = model.encode([advanced_query]).tolist()
         
@@ -148,8 +154,8 @@ def get_contextual_recommendations(query, df, model, collection):
         candidate_ids = results['ids'][0]
         candidate_embeddings = results['embeddings'][0]
         
-        # Use lower lambda_param (0.3) to prefer DIVERSITY over strict similarity
-        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=15, lambda_param=0.3)
+        # Adjust lambda_param (0.6) to ensure relevance while allowing some diversity
+        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=15, lambda_param=0.6)
         
         final_indices = [int(uid) for uid in final_ids]
         return df.loc[final_indices]
@@ -166,3 +172,71 @@ if __name__ == '__main__':
         print("Testing Contextual Search for 'Fever'...")
         recs = get_contextual_recommendations("Fever", df, model, collection)
         print(recs[['name', 'reason']].head(5))
+
+# --- NEW FUNCTIONALITY: Root Cause / Diverse Types Match ---
+def get_root_cause_match(query, df, model, collection):
+    """
+    Finds diverse types of a condition (e.g. 'pain' -> stomach pain, body pain, chest pain)
+    or root causes.
+    """
+    try:
+        # Lightly augment query to find diverse types and root causes without diluting typos
+        advanced_query = query + " causes conditions"
+        
+        query_vec = model.encode([advanced_query]).tolist()
+        
+        results = collection.query(
+            query_embeddings=query_vec,
+            n_results=50, 
+            include=['embeddings', 'documents', 'metadatas'] 
+        )
+        
+        if not results.get('ids') or not results['ids'][0]:
+            return pd.DataFrame()
+
+        candidate_ids = results['ids'][0]
+        candidate_embeddings = results['embeddings'][0]
+        
+        # Use higher lambda_param (0.7) to heavily enforce relevance and prevent wild drift
+        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.7)
+        
+        final_indices = [int(uid) for uid in final_ids]
+        return df.loc[final_indices]
+    except Exception as e:
+        print(f"Error getting root cause matches: {e}")
+        return pd.DataFrame()
+
+# --- NEW FUNCTIONALITY: Previous Search Recommendations ---
+def get_previous_search_recommendations(search_history, df, model, collection):
+    """
+    Provides recommendations based on the user's past search queries.
+    """
+    if not search_history:
+        return pd.DataFrame()
+        
+    try:
+        # Combine previous searches into a single query context
+        combined_query = " ".join(search_history)
+        
+        query_vec = model.encode([combined_query]).tolist()
+        
+        results = collection.query(
+            query_embeddings=query_vec,
+            n_results=30, 
+            include=['embeddings', 'documents', 'metadatas'] 
+        )
+        
+        if not results.get('ids') or not results['ids'][0]:
+            return pd.DataFrame()
+
+        candidate_ids = results['ids'][0]
+        candidate_embeddings = results['embeddings'][0]
+        
+        # Standard MMR for general recommendations
+        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.5)
+        
+        final_indices = [int(uid) for uid in final_ids]
+        return df.loc[final_indices]
+    except Exception as e:
+        print(f"Error getting previous search recommendations: {e}")
+        return pd.DataFrame()

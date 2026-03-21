@@ -8,7 +8,7 @@
             Showing medicines for conditions associated with: 
             <span style="background: #e67e22; color: white; padding: 5px 10px; border-radius: 5px;">{{ original_query }}</span>
         </p>
-        <a href="{{ url_for('recommender_page') }}" style="display: inline-block; margin-top: 10px; text-decoration: none; color: #3498db; border: 1px solid #3498db; padding: 5px 15px; border-radius: 20px;">
+        <a href="{{ url_for('recommender_page', query=original_query) }}" style="display: inline-block; margin-top: 10px; text-decoration: none; color: #3498db; border: 1px solid #3498db; padding: 5px 15px; border-radius: 20px;">
             &larr; Back to Search
         </a>
     </div>
