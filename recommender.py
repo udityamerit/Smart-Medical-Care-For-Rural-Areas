@@ -83,7 +83,7 @@ def mmr_sort(query_embedding, candidate_embeddings, candidate_ids, k=10, lambda_
             selected_indices.append(best_idx)
             candidate_indices.remove(best_idx)
             
-    return [candidate_ids[i] for i in selected_indices]
+    return [(candidate_ids[i], sim_to_query[i]) for i in selected_indices]
 
 def get_recommendations(query, df, model, collection):
     """
@@ -112,11 +112,25 @@ def get_recommendations(query, df, model, collection):
         candidate_embeddings = results['embeddings'][0]
         
         # 3. Apply MMR
-        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.5)
+        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.5)
         
         # Convert IDs back to integers for DataFrame lookup
-        final_indices = [int(uid) for uid in final_ids]
-        return df.loc[final_indices]
+        final_indices = [int(uid) for uid, score in final_results]
+        scores = [score for uid, score in final_results]
+        
+        matched_df = df.loc[final_indices].copy()
+        
+        # Scale scores to map the best match up to 95-99%
+        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scaled_scores = []
+        for s in scores:
+            relative = max(0.0, float(s)) / max(0.001, max_score)
+            boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
+            scaled_scores.append(round(min(99.6, boosted)))
+            
+        matched_df['Match_Score'] = scaled_scores
+        matched_df = matched_df[matched_df['Match_Score'] >= 95]
+        return matched_df
 
     except Exception as e:
         print(f"Error during recommendation: {e}")
@@ -155,10 +169,24 @@ def get_contextual_recommendations(query, df, model, collection):
         candidate_embeddings = results['embeddings'][0]
         
         # Adjust lambda_param (0.6) to ensure relevance while allowing some diversity
-        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=15, lambda_param=0.6)
+        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=15, lambda_param=0.6)
         
-        final_indices = [int(uid) for uid in final_ids]
-        return df.loc[final_indices]
+        final_indices = [int(uid) for uid, score in final_results]
+        scores = [score for uid, score in final_results]
+        
+        matched_df = df.loc[final_indices].copy()
+        
+        # Scale scores to map the best match up to 95-99%
+        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scaled_scores = []
+        for s in scores:
+            relative = max(0.0, float(s)) / max(0.001, max_score)
+            boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
+            scaled_scores.append(round(min(99.6, boosted)))
+            
+        matched_df['Match_Score'] = scaled_scores
+        matched_df = matched_df[matched_df['Match_Score'] >= 95]
+        return matched_df
 
     except Exception as e:
         print(f"Error getting contextual recommendations: {e}")
@@ -198,10 +226,24 @@ def get_root_cause_match(query, df, model, collection):
         candidate_embeddings = results['embeddings'][0]
         
         # Use higher lambda_param (0.7) to heavily enforce relevance and prevent wild drift
-        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.7)
+        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.7)
         
-        final_indices = [int(uid) for uid in final_ids]
-        return df.loc[final_indices]
+        final_indices = [int(uid) for uid, score in final_results]
+        scores = [score for uid, score in final_results]
+        
+        matched_df = df.loc[final_indices].copy()
+        
+        # Scale scores to map the best match up to 95-99%
+        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scaled_scores = []
+        for s in scores:
+            relative = max(0.0, float(s)) / max(0.001, max_score)
+            boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
+            scaled_scores.append(round(min(99.6, boosted)))
+            
+        matched_df['Match_Score'] = scaled_scores
+        matched_df = matched_df[matched_df['Match_Score'] >= 95]
+        return matched_df
     except Exception as e:
         print(f"Error getting root cause matches: {e}")
         return pd.DataFrame()
@@ -233,10 +275,24 @@ def get_previous_search_recommendations(search_history, df, model, collection):
         candidate_embeddings = results['embeddings'][0]
         
         # Standard MMR for general recommendations
-        final_ids = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.5)
+        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.5)
         
-        final_indices = [int(uid) for uid in final_ids]
-        return df.loc[final_indices]
+        final_indices = [int(uid) for uid, score in final_results]
+        scores = [score for uid, score in final_results]
+        
+        matched_df = df.loc[final_indices].copy()
+        
+        # Scale scores to map the best match up to 95-99%
+        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scaled_scores = []
+        for s in scores:
+            relative = max(0.0, float(s)) / max(0.001, max_score)
+            boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
+            scaled_scores.append(round(min(99.6, boosted)))
+            
+        matched_df['Match_Score'] = scaled_scores
+        matched_df = matched_df[matched_df['Match_Score'] >= 95]
+        return matched_df
     except Exception as e:
         print(f"Error getting previous search recommendations: {e}")
         return pd.DataFrame()
