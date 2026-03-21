@@ -13,8 +13,9 @@
             <h2 class="category-header">{{ age_group | capitalize }} Medicines</h2>
             <div class="medicine-grid-2-col">
                 {% for med in meds %}
-                    <div class="medicine-list-card">
-                        <h3>{{ med['name'] }}</h3>
+                    <div class="medicine-list-card" style="position: relative;">
+                        <h3 style="padding-right: 40px;">{{ med['name'] }}</h3>
+                        <button class="get-info-btn" data-medicine="{{ med['name'] }}" style="position: absolute; top: 15px; right: 15px; background-color: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.85em; transition: background 0.3s;"><i class="fas fa-shield-alt"></i> Safety Info</button>
                         <div class="medicine-details-grid">
                             <span class="detail-label">Description</span>
                             <span class="detail-value">{{ med['description'] }}</span>
@@ -37,4 +38,121 @@
         <a href="{{ url_for('login_page') }}" class="cta-button">Sign Up to Explore</a>
     </div>
 </div>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease;
+        cursor: pointer;
+    }
+
+    .modal-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal-content {
+        background: #1e2b3c;
+        padding: 25px;
+        border-radius: 15px;
+        color: #ecf0f1;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        transform: scale(0.9);
+        transition: transform 0.3s ease;
+        cursor: default;
+        border-left: 5px solid #e74c3c;
+        max-width: 600px; 
+        width: 90%; 
+        text-align: left;
+    }
+    
+    .modal-overlay.show .modal-content {
+        transform: scale(1);
+    }
+</style>
+
+<!-- Safety Info Modal -->
+<div id="info-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; margin-bottom: 20px;">
+            <h2 id="info-modal-title" style="margin: 0; color: #e74c3c; font-size: 1.5em;"><i class="fas fa-shield-alt"></i> <span>Medicine Name</span></h2>
+            <button id="close-info-modal" style="background: none; border: none; color: #ecf0f1; font-size: 1.8em; cursor: pointer; padding: 0;">&times;</button>
+        </div>
+        <div id="info-modal-body" style="font-size: 1em; line-height: 1.6; color: #dcdde1; max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+            <div id="info-loading" style="text-align: center; padding: 30px;">
+                <i class="fas fa-spinner fa-spin fa-3x" style="color: #e74c3c;"></i>
+                <p style="margin-top: 15px; color: #7f8c8d; font-weight: normal;">Searching global databases for safety warnings...</p>
+            </div>
+            <div id="info-content" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const infoModal = document.getElementById('info-modal');
+    const closeInfoModal = document.getElementById('close-info-modal');
+    const infoLoading = document.getElementById('info-loading');
+    const infoContent = document.getElementById('info-content');
+    const infoTitle = document.querySelector('#info-modal-title span');
+
+    document.querySelectorAll('.get-info-btn').forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const medicineName = this.getAttribute('data-medicine');
+            infoTitle.textContent = medicineName + ' Safety Warnings';
+            infoLoading.style.display = 'block';
+            infoContent.style.display = 'none';
+            infoModal.classList.add('show');
+            
+            try {
+                const response = await fetch('/api/medicine-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ medicine_name: medicineName })
+                });
+                
+                const data = await response.json();
+                infoLoading.style.display = 'none';
+                infoContent.style.display = 'block';
+                
+                if (data.error) {
+                    infoContent.innerHTML = `<div style="color: #e74c3c;"><i class="fas fa-exclamation-triangle"></i> ${data.error}</div>`;
+                } else {
+                    infoContent.innerHTML = `<div style="background: rgba(231, 76, 60, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #e74c3c; line-height: 1.8;">
+                                                <div style="margin: 0; font-weight: 500;">${data.info}</div>
+                                             </div>`;
+                }
+            } catch (err) {
+                infoLoading.style.display = 'none';
+                infoContent.style.display = 'block';
+                infoContent.innerHTML = `<p style="color: #e74c3c;"><i class="fas fa-exclamation-triangle"></i> Network error fetching details.</p>`;
+            }
+        });
+    });
+
+    closeInfoModal?.addEventListener('click', () => {
+        infoModal.classList.remove('show');
+    });
+
+    infoModal?.addEventListener('click', (e) => {
+        if (e.target === infoModal) {
+            infoModal.classList.remove('show');
+        }
+    });
+});
+</script>
 {% endblock %}

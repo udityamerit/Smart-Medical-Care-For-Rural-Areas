@@ -85,6 +85,22 @@
         <p>Listening...</p>
     </div>
 </div>
+
+<div id="info-modal" class="modal-overlay" style="z-index: 2000;">
+    <div class="modal-content" style="max-width: 600px; width: 90%; text-align: left; background: #1e2b3c; border-left: 5px solid #e74c3c;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; margin-bottom: 20px;">
+            <h2 id="info-modal-title" style="margin: 0; color: #e74c3c; font-size: 1.5em;"><i class="fas fa-shield-alt"></i> <span>Medicine Name</span></h2>
+            <button id="close-info-modal" style="background: none; border: none; color: #ecf0f1; font-size: 1.8em; cursor: pointer; padding: 0;">&times;</button>
+        </div>
+        <div id="info-modal-body" style="font-size: 1em; line-height: 1.6; color: #dcdde1; max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+            <div id="info-loading" style="text-align: center; padding: 30px;">
+                <i class="fas fa-spinner fa-spin fa-3x" style="color: #e74c3c;"></i>
+                <p style="margin-top: 15px; color: #7f8c8d; font-weight: normal;">Searching global databases for safety warnings...</p>
+            </div>
+            <div id="info-content" style="display: none;"></div>
+        </div>
+    </div>
+</div>
 <section class="hero">
     <h1>AIOPharmacy Medicine Recommender</h1>
 </section>
@@ -110,9 +126,12 @@
     <h2>Best Match Found</h2>
     <div class="medicine-card">
         <h3>{{ recommendation['name'] }}</h3>
-        <div
-            style="background-color: #f39c12; color: white; display: inline-block; padding: 5px 10px; border-radius: 5px; margin-bottom: 10px; font-weight: bold; font-size: 0.9em;">
-            Match Accuracy: {{ recommendation['Match_Score'] }}%
+        <div style="margin-bottom: 10px;">
+            <div
+                style="background-color: #f39c12; color: white; display: inline-block; padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.9em; margin-right: 10px;">
+                Match Accuracy: {{ recommendation['Match_Score'] }}%
+            </div>
+            <button class="get-info-btn" data-medicine="{{ recommendation['name'] }}" style="background-color: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.9em; transition: background 0.3s;"><i class="fas fa-shield-alt"></i> Important Safety Warnings</button>
         </div>
         <p><strong>Description:</strong> {{ recommendation['description'] }}</p>
         <p><strong>Reason for Use:</strong> {{ recommendation['reason'] }}</p>
@@ -160,11 +179,14 @@
         <h2>Other Similar Medicines</h2>
         <div style="display: flex; overflow-x: auto; gap: 15px; padding-bottom: 15px;">
             {% for row in other_recommendations %}
-            <div class="medicine-card-small" style="min-width: 260px; flex: 0 0 auto;">
+            <div class="medicine-card-small" style="min-width: 260px; flex: 0 0 auto; display: flex; flex-direction: column;">
                 <h3>{{ row['name'] }}</h3>
-                <div
-                    style="background-color: #f39c12; color: white; display: inline-block; padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; font-size: 0.85em; font-weight: bold;">
-                    Match Accuracy: {{ row['Match_Score'] }}%
+                <div style="margin-bottom: 8px;">
+                    <div
+                        style="background-color: #f39c12; color: white; display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; margin-bottom: 5px; margin-right: 5px;">
+                        Match Accuracy: {{ row['Match_Score'] }}%
+                    </div>
+                    <button class="get-info-btn" data-medicine="{{ row['name'] }}" style="background-color: #3498db; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85em;"><i class="fas fa-shield-alt"></i> Safety</button>
                 </div>
                 <p><strong>Description:</strong> {{ row['description'] }}</p>
                 <p><strong>Reason for Use:</strong> {{ row['reason'] }}</p>
@@ -183,8 +205,11 @@
         <div style="display: flex; overflow-x: auto; gap: 20px; padding: 10px 5px 20px 5px; margin-top: 15px;">
             {% for row in previous_search_recommendations %}
             <div class="medicine-card-small card-theme-green"
-                style="min-width: 280px; flex: 0 0 auto; cursor: pointer;">
+                style="min-width: 280px; flex: 0 0 auto; cursor: pointer; display: flex; flex-direction: column;">
                 <h3>{{ row['name'] }}</h3>
+                <div style="margin-bottom: 8px;">
+                    <button class="get-info-btn" data-medicine="{{ row['name'] }}" style="background-color: #3498db; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85em;"><i class="fas fa-shield-alt"></i> Safety Info</button>
+                </div>
                 <p><strong>Description:</strong> {{ row['description'] }}</p>
                 <p><strong>Reason for Use:</strong> {{ row['reason'] }}</p>
                 <div class="tag-label">{{ row['age_group'] }}</div>
@@ -313,6 +338,59 @@
             } else {
                 alternatives.style.display = 'none';
                 this.textContent = 'Show Other Similar Medicines';
+            }
+        });
+
+        const infoModal = document.getElementById('info-modal');
+        const closeInfoModal = document.getElementById('close-info-modal');
+        const infoLoading = document.getElementById('info-loading');
+        const infoContent = document.getElementById('info-content');
+        const infoTitle = document.querySelector('#info-modal-title span');
+
+        document.querySelectorAll('.get-info-btn').forEach(btn => {
+            btn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const medicineName = this.getAttribute('data-medicine');
+                infoTitle.textContent = medicineName + ' Safety Warnings';
+                infoLoading.style.display = 'block';
+                infoContent.style.display = 'none';
+                infoModal.classList.add('show');
+                
+                try {
+                    const response = await fetch('/api/medicine-info', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ medicine_name: medicineName })
+                    });
+                    
+                    const data = await response.json();
+                    infoLoading.style.display = 'none';
+                    infoContent.style.display = 'block';
+                    
+                    if (data.error) {
+                        infoContent.innerHTML = `<div style="color: #e74c3c;"><i class="fas fa-exclamation-triangle"></i> ${data.error}</div>`;
+                    } else {
+                        infoContent.innerHTML = `<div style="background: rgba(231, 76, 60, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #e74c3c; line-height: 1.8;">
+                                                    <div style="margin: 0; font-weight: 500;">${data.info}</div>
+                                                 </div>`;
+                    }
+                } catch (err) {
+                    infoLoading.style.display = 'none';
+                    infoContent.style.display = 'block';
+                    infoContent.innerHTML = `<p style="color: #e74c3c;"><i class="fas fa-exclamation-triangle"></i> Network error fetching details.</p>`;
+                }
+            });
+        });
+
+        closeInfoModal?.addEventListener('click', () => {
+            infoModal.classList.remove('show');
+        });
+
+        infoModal?.addEventListener('click', (e) => {
+            if (e.target === infoModal) {
+                infoModal.classList.remove('show');
             }
         });
 

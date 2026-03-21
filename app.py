@@ -14,6 +14,8 @@ import pandas as pd
 import plotly.express as px
 import json
 import os
+import requests
+from bs4 import BeautifulSoup
 
 # --- App and Login Configuration ---
 app = Flask(__name__)
@@ -371,6 +373,60 @@ def find_pharmacies():
 
     sorted_pharmacies = sorted(pharmacies_with_distance, key=lambda p: p['distance_km'])
     return jsonify(sorted_pharmacies)
+
+@app.route('/api/medicine-info', methods=['POST'])
+def get_medicine_info():
+    data = request.json
+    medicine_name = data.get('medicine_name', '').strip()
+    
+    if not medicine_name:
+        return jsonify({"error": "Medicine name is required"}), 400
+        
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36'
+        }
+        url = f"https://html.duckduckgo.com/html/?q={medicine_name}+medicine+important+safety+warnings+side+effects"
+        
+        response = requests.get(url, headers=headers, timeout=8)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        snippets = soup.find_all('a', class_='result__snippet')
+        
+        valid_points = []
+        med_name_lower = medicine_name.lower().strip()
+        med_tokens = med_name_lower.split()
+        primary_name = med_tokens[0] if med_tokens else ""
+        
+        for snippet in snippets:
+            text = snippet.text.strip(' .')
+            text_lower = text.lower()
+            
+            if text and primary_name:
+                # Strictly filter to only include snippets that explicitly mention the medicine 
+                # (to avoid showing warnings for unrelated drugs as requested)
+                if primary_name in text_lower:
+                    # Clean up random DDG ellipses
+                    clean_text = text.replace("...", " ").replace("  ", " ").strip()
+                    if clean_text not in valid_points:
+                        valid_points.append(clean_text)
+                        
+            if len(valid_points) >= 5:
+                break
+                
+        if not valid_points:
+             info_html = f"<div style='margin-bottom: 8px; display: flex;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold;'>•</span><span style='line-height: 1.5;'>No highly verified safety warnings specific to <strong>{medicine_name}</strong> were found online.</span></div>"
+             info_html += f"<div style='display: flex;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold;'>•</span><span style='line-height: 1.5;'>Please consult your healthcare provider or pharmacist for accurate precautions.</span></div>"
+        else:
+             info_html = f"<strong style='display:block; margin-bottom: 15px; font-size: 1.05em; border-bottom: 1px solid rgba(231, 76, 60, 0.3); padding-bottom: 8px; color: #e74c3c;'>Key Information & Safety Warnings for {medicine_name.capitalize()}:</strong>"
+             for pt in valid_points:
+                 info_html += f"<div style='margin-bottom: 12px; display: flex; align-items: flex-start;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold; font-size: 1.2em;'>•</span><span style='line-height: 1.5;'>{pt}.</span></div>"
+             
+        return jsonify({"info": info_html})
+        
+    except Exception as e:
+        print(f"Error fetching medicine info: {e}")
+        return jsonify({"error": "Failed to retrieve safety information. Please try again later."}), 500
 
 
 if __name__ == '__main__':
