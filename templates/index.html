@@ -101,6 +101,52 @@
         </div>
     </div>
 </div>
+<style>
+    .hero {
+        padding: 60px 20px;
+        text-align: center;
+    }
+    
+    .hero h1 {
+        font-size: 2.5rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    #search-form {
+        display: flex;
+        width: 90%;
+        max-width: 800px;
+        margin: 0 auto;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    #search-form input {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    @media screen and (max-width: 768px) {
+        .hero h1 {
+            font-size: 1.8rem;
+        }
+        .animation-container img {
+            width: 200px !important;
+        }
+        .action-buttons-group {
+            flex-direction: column;
+        }
+        #search-form {
+            flex-direction: column;
+        }
+        #search-form input {
+            width: 100%;
+        }
+    }
+</style>
+
 <section class="hero">
     <h1>AIOPharmacy Medicine Recommender</h1>
 </section>

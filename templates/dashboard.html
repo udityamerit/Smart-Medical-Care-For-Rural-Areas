@@ -38,6 +38,7 @@
         margin: 0;
         background: linear-gradient(90deg, #fff, #00aaff);
         -webkit-background-clip: text;
+        background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 800;
     }
@@ -79,6 +80,36 @@
         grid-template-columns: 1fr 1fr;
         gap: 25px;
         margin-bottom: 25px;
+    }
+
+    @media screen and (max-width: 992px) {
+        .main-grid {
+            grid-template-columns: 1fr;
+        }
+        .metrics-grid {
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        }
+    }
+
+    @media screen and (max-width: 768px) {
+        .dashboard-container {
+            padding: 15px;
+        }
+        .dash-header {
+            flex-direction: column;
+            gap: 20px;
+            text-align: center;
+        }
+        .filter-section {
+            width: 100%;
+            flex-direction: column;
+        }
+        .filter-select {
+            width: 100%;
+        }
+        .dash-title-group h1 {
+            font-size: 1.5rem;
+        }
     }
 
     .analysis-card {

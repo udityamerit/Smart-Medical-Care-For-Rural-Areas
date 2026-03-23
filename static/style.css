@@ -23,6 +23,23 @@ body {
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    width: 100%;
+    position: relative;
+}
+
+/* Global Fluid Container Scaling */
+.page-wrapper {
+    width: 95%;
+    max-width: 1400px;
+    margin: 90px auto 30px auto;
+    min-height: calc(100vh - 120px);
+}
+
+@media screen and (max-width: 480px) {
+    .page-wrapper {
+        width: 98%;
+        padding: 10px;
+    }
 }
 
 #particles-js {
@@ -95,6 +112,65 @@ body {
     gap: 30px;
     flex-grow: 1;
     height: 100%;
+    transition: all 0.3s ease;
+}
+
+/* Mobile Toggle - Hidden by default */
+.mobile-toggle {
+    display: none;
+    font-size: 24px;
+    color: #fff;
+    cursor: pointer;
+    margin-left: 15px;
+}
+
+/* RESPONSIVE NAVIGATION MAGIC */
+@media screen and (max-width: 992px) {
+    .main-header {
+        padding: 0 3%;
+    }
+    .nav-links {
+        gap: 15px;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .mobile-toggle {
+        display: block;
+    }
+
+    .nav-links, .user-actions {
+        display: none; /* Hide on mobile by default */
+    }
+
+    /* When the menu is toggled active */
+    #main-nav.responsive .nav-links {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 80px;
+        left: 0;
+        width: 100%;
+        background: rgba(10, 25, 47, 0.98);
+        height: auto;
+        padding: 20px 0;
+        border-bottom: 1px solid var(--accent-color);
+        z-index: 999;
+        gap: 20px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+    }
+
+    #main-nav.responsive .user-actions {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: rgba(13, 27, 42, 0.98);
+        padding: 15px;
+        justify-content: center;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
 }
 
 .nav-links a {
