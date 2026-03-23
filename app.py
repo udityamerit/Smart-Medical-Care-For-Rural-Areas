@@ -16,6 +16,8 @@ import json
 import os
 import requests
 from bs4 import BeautifulSoup
+import re
+import urllib.parse
 
 # --- App and Login Configuration ---
 app = Flask(__name__)
@@ -415,12 +417,25 @@ def get_medicine_info():
                 break
                 
         if not valid_points:
-             info_html = f"<div style='margin-bottom: 8px; display: flex;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold;'>•</span><span style='line-height: 1.5;'>No highly verified safety warnings specific to <strong>{medicine_name}</strong> were found online.</span></div>"
-             info_html += f"<div style='display: flex;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold;'>•</span><span style='line-height: 1.5;'>Please consult your healthcare provider or pharmacist for accurate precautions.</span></div>"
+             encoded_med = urllib.parse.quote_plus(f"{medicine_name} medicine use safety warnings side effects")
+             google_url = f"https://www.google.com/search?q={encoded_med}"
+             info_html = f"<div style='margin-bottom: 20px; display: flex; align-items: flex-start;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold;'>•</span><span style='line-height: 1.5; color: #ecf0f1;'>Strict, highly verified safety warnings specific to <strong>{medicine_name}</strong> could not be automatically extracted from our quick search.</span></div>"
+             info_html += f"<div style='text-align: center; margin-top: 25px;'><a href='{google_url}' target='_blank' style='background-color: #3498db; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; transition: background 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'><i class='fab fa-google'></i> Search Google for {medicine_name.capitalize()} Info</a></div>"
         else:
-             info_html = f"<strong style='display:block; margin-bottom: 15px; font-size: 1.05em; border-bottom: 1px solid rgba(231, 76, 60, 0.3); padding-bottom: 8px; color: #e74c3c;'>Key Information & Safety Warnings for {medicine_name.capitalize()}:</strong>"
+             def highlight_keywords(text):
+                 keywords = [r'\bside effects?\b', r'\ballergic reactions?\b', r'\bwarnings?\b', r'\bwarning\b', r'\bcautions?\b', r'\bprecautions?\b', r'\bfatal\b', r'\bsevere\b', r'\binteractions?\b', r'\bdo not take\b', r'\bavoid\b', r'\bsymptoms?\b', r'\bdangerous\b']
+                 for kw in keywords:
+                     text = re.sub(f'({kw})', r"<strong style='color: #2c3e50; background-color: #f39c12; padding: 2px 5px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>\1</strong>", text, flags=re.IGNORECASE)
+                 return text
+                 
+             encoded_med = urllib.parse.quote_plus(f"{medicine_name} medicine use safety warnings side effects")
+             google_url = f"https://www.google.com/search?q={encoded_med}"
+             
+             info_html = f"<div style='word-wrap: break-word; overflow-wrap: break-word;'><strong style='display:block; margin-bottom: 15px; font-size: 1.05em; border-bottom: 1px solid rgba(231, 76, 60, 0.3); padding-bottom: 8px; color: #e74c3c;'><i class='fas fa-exclamation-circle' style='margin-right: 8px;'></i>Key Information & Safety Warnings for {medicine_name.capitalize()}:</strong>"
              for pt in valid_points:
-                 info_html += f"<div style='margin-bottom: 12px; display: flex; align-items: flex-start;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold; font-size: 1.2em;'>•</span><span style='line-height: 1.5;'>{pt}.</span></div>"
+                 pt_styled = highlight_keywords(pt)
+                 info_html += f"<div style='margin-bottom: 14px; display: flex; align-items: flex-start;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold; font-size: 1.2em; line-height: 1;'>•</span><span style='line-height: 1.6; color: #ecf0f1;'>{pt_styled}.</span></div>"
+             info_html += f"<div style='margin-top: 20px; text-align: right; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;'><a href='{google_url}' target='_blank' style='color: #4cd137; text-decoration: none; font-size: 0.95em; font-weight: bold;'><i class='fab fa-google'></i> View more details on Google</a></div></div>"
              
         return jsonify({"info": info_html})
         

@@ -10,3 +10,6 @@ sentence-transformers
 chromadb
 torch
 wrapt
+googlesearch-python
+google-generativeai
+python-dotenv

@@ -13,17 +13,21 @@
             <h2 class="category-header">{{ age_group | capitalize }} Medicines</h2>
             <div class="medicine-grid-2-col">
                 {% for med in meds %}
-                    <div class="medicine-list-card" style="position: relative;">
-                        <h3 style="padding-right: 40px;">{{ med['name'] }}</h3>
-                        <button class="get-info-btn" data-medicine="{{ med['name'] }}" style="position: absolute; top: 15px; right: 15px; background-color: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.85em; transition: background 0.3s;"><i class="fas fa-shield-alt"></i> Safety Info</button>
+                    <div class="medicine-list-card">
+                        <h3>{{ med['name'] }}</h3>
                         <div class="medicine-details-grid">
                             <span class="detail-label">Description</span>
                             <span class="detail-value">{{ med['description'] }}</span>
                             <span class="detail-label" style="margin-top: 10px;">Reason for Use</span>
                             <span class="detail-value">{{ med['reason'] }}</span>
                         </div>
-                        <div style="margin-top: 15px;">
-                            <span class="tag-label">{{ med['age_group'] }}</span>
+                        <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
+                            <span class="tag-label tag-{{ med['age_group'] }}">
+                                {{ med['age_group'] | capitalize }}
+                            </span>
+                            <button class="get-info-btn" data-medicine="{{ med['name'] }}">
+                                <i class="fas fa-shield-alt"></i> Safety Info
+                            </button>
                         </div>
                     </div>
                 {% endfor %}
@@ -74,6 +78,39 @@
     
     .modal-overlay.show .modal-content {
         transform: scale(1);
+    }
+
+    .tag-label {
+        color: white; 
+        padding: 4px 12px; 
+        border-radius: 20px; 
+        font-size: 0.85em; 
+        font-weight: 600;
+        text-transform: capitalize;
+    }
+    .tag-child { background: #2ecc71; box-shadow: 0 2px 8px rgba(46, 204, 113, 0.3); }
+    .tag-adult { background: #e67e22; box-shadow: 0 2px 8px rgba(230, 126, 34, 0.3); }
+    .tag-all { background: #9b59b6; box-shadow: 0 2px 8px rgba(155, 89, 182, 0.3); }
+
+    .get-info-btn {
+        background-color: rgba(52, 152, 219, 0.1); 
+        color: #3498db; 
+        border: 1px solid #3498db; 
+        padding: 4px 12px; 
+        border-radius: 20px; 
+        cursor: pointer; 
+        font-weight: bold; 
+        font-size: 0.85em; 
+        transition: all 0.3s; 
+        display: flex; 
+        align-items: center; 
+        gap: 5px;
+    }
+    .get-info-btn:hover {
+        background-color: #3498db;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
     }
 </style>
 
