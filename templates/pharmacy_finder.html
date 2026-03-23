@@ -3,255 +3,307 @@
 {% block title %}Pharmacy Finder{% endblock %}
 
 {% block styles %}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
-    
-    <script>
-      window.tailwind = {
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+<script>
+    window.tailwind = {
         config: {
-          corePlugins: {
-            preflight: false, 
-          }
+            corePlugins: {
+                preflight: false,
+            }
         }
-      }
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <style>
-        /* --- NEW: Remove the Animated Doctor from this page only --- */
-        #animated-character {
-            display: none !important;
-        }
+    }
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
 
-        /* --- CRITICAL FIX: Override Global Layout for Full Screen App --- */
-        main.page-wrapper {
-            margin: 0 !important;
-            padding: 0 !important;
-            padding-top: 80px !important; /* Adjust to match your header height */
-            max-width: 100vw !important;
-            height: 100vh !important;
-            overflow: hidden !important;
-            display: flex;
-            flex-direction: column;
-        }
+<style>
+    /* --- NEW: Remove the Animated Doctor from this page only --- */
+    #animated-character {
+        display: none !important;
+    }
 
-        /* --- Layout Container --- */
-        .finder-page-container {
-            flex: 1;               /* Fills the remaining height of the screen */
-            width: 100%; 
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
+    /* --- CRITICAL FIX: Override Global Layout for Full Screen App --- */
+    main.page-wrapper {
+        margin: 0 !important;
+        padding: 0 !important;
+        padding-top: 80px !important;
+        /* Adjust to match your header height */
+        max-width: 100vw !important;
+        height: 100vh !important;
+        overflow: hidden !important;
+        display: flex;
+        flex-direction: column;
+    }
 
-        /* --- Global Layout (Mobile First) --- */
+    /* --- Layout Container --- */
+    .finder-page-container {
+        flex: 1;
+        /* Fills the remaining height of the screen */
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* --- Global Layout (Mobile First) --- */
+    .finder-layout {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    /* --- Desktop Grid Layout --- */
+    @media (min-width: 1124px) {
         .finder-layout {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            width: 100%;
-            overflow: hidden;
+            display: grid;
+            grid-template-columns: 450px 1fr;
         }
+    }
 
-        /* --- Desktop Grid Layout --- */
-        @media (min-width: 1124px) {
-            .finder-layout {
-                display: grid;
-                grid-template-columns: 450px 1fr; 
-            }
-        }
-        
-        /* --- Sidebar Panel (Pharmacy List Column) --- */
+    /* --- Sidebar Panel (Pharmacy List Column) --- */
+    .sidebar-panel {
+        background: var(--primary-bg, #0d1b2a);
+        border-right: 1px solid rgba(0, 170, 255, 0.2);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        z-index: 20;
+        overflow: hidden;
+        /* Constraints the scrollable child */
+
+        /* Mobile: List takes 55% height */
+        height: 55%;
+        border-bottom: 1px solid rgba(0, 170, 255, 0.2);
+    }
+
+    /* --- Map Container --- */
+    .map-container-wrapper {
+        position: relative;
+        width: 100%;
+        background: #050b14;
+
+        /* Mobile: Map takes 45% height */
+        height: 45%;
+    }
+
+    /* Desktop: Full height for both columns */
+    @media (min-width: 1124px) {
         .sidebar-panel {
-            background: var(--primary-bg, #0d1b2a);
-            border-right: 1px solid rgba(0, 170, 255, 0.2);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            z-index: 20;
-            overflow: hidden; /* Constraints the scrollable child */
-            
-            /* Mobile: List takes 55% height */
-            height: 55%;
-            border-bottom: 1px solid rgba(0, 170, 255, 0.2);
-        }
-
-        /* --- Map Container --- */
-        .map-container-wrapper {
-            position: relative;
-            width: 100%;
-            background: #050b14;
-            
-            /* Mobile: Map takes 45% height */
-            height: 45%;
-        }
-
-        /* Desktop: Full height for both columns */
-        @media (min-width: 1124px) {
-            .sidebar-panel {
-                height: 100%;
-                border-bottom: none;
-            }
-            .map-container-wrapper {
-                height: 100%;
-            }
-        }
-
-        /* --- FIXED SCROLLING HERE --- */
-        .sidebar-content {
-            padding: 0; 
             height: 100%;
-            display: flex;          
-            flex-direction: column; 
-            /* CHANGE: Enable scrolling on the entire content wrapper */
-            overflow-y: auto; 
-            overflow-x: hidden;
-            scroll-behavior: smooth;
-        }
-        
-        /* Header Area: Now scrolls with the content */
-        .sidebar-header-area {
-            padding: 20px;
-            padding-bottom: 0;
-            flex-shrink: 0; /* Header never shrinks */
+            border-bottom: none;
         }
 
-        /* --- RESULTS LIST (Now just content that flows naturally) --- */
-        #results-list {
-            padding: 10px 20px 40px 20px; /* Extra bottom padding */
+        .map-container-wrapper {
+            height: 100%;
         }
+    }
 
-        /* Custom Scrollbar */
-        .sidebar-content::-webkit-scrollbar { width: 8px; }
-        .sidebar-content::-webkit-scrollbar-track { background: #0d1b2a; }
-        .sidebar-content::-webkit-scrollbar-thumb { background: #00aaff; border-radius: 4px; }
-        .sidebar-content::-webkit-scrollbar-thumb:hover { background: #0088cc; }
+    /* --- FIXED SCROLLING HERE --- */
+    .sidebar-content {
+        padding: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        /* CHANGE: Enable scrolling on the entire content wrapper */
+        overflow-y: auto;
+        overflow-x: hidden;
+        scroll-behavior: smooth;
+    }
+
+    /* Header Area: Now scrolls with the content */
+    .sidebar-header-area {
+        padding: 20px;
+        padding-bottom: 0;
+        flex-shrink: 0;
+        /* Header never shrinks */
+    }
+
+    /* --- RESULTS LIST (Now just content that flows naturally) --- */
+    #results-list {
+        padding: 10px 20px 40px 20px;
+        /* Extra bottom padding */
+    }
+
+    /* Custom Scrollbar */
+    .sidebar-content::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .sidebar-content::-webkit-scrollbar-track {
+        background: #0d1b2a;
+    }
+
+    .sidebar-content::-webkit-scrollbar-thumb {
+        background: #00aaff;
+        border-radius: 4px;
+    }
+
+    .sidebar-content::-webkit-scrollbar-thumb:hover {
+        background: #0088cc;
+    }
 
 
-        /* --- Widgets --- */
-        .control-widget {
-            background: rgba(21, 30, 42, 0.9);
-            border: 1px solid rgba(0, 170, 255, 0.2);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
+    /* --- Widgets --- */
+    .control-widget {
+        background: rgba(21, 30, 42, 0.9);
+        border: 1px solid rgba(0, 170, 255, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
 
-        .slider-container input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 6px;
-            background: #334155;
-            border-radius: 5px;
-            outline: none;
-        }
-        .slider-container input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 18px;
-            height: 18px;
-            background: #00aaff;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 0 10px rgba(0, 170, 255, 0.5);
-        }
+    .slider-container input[type=range] {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 6px;
+        background: #334155;
+        border-radius: 5px;
+        outline: none;
+    }
 
-        /* --- Buttons --- */
-        .btn-action {
-            width: 100%;
-            padding: 12px;
-            font-weight: 700;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            cursor: pointer;
-            border: 1px solid transparent;
-        }
-        
-        .btn-gps {
-            background: rgba(0, 170, 255, 0.1);
-            color: #00aaff;
-            border-color: #00aaff;
-        }
-        .btn-gps:hover {
-            background: #00aaff;
-            color: #fff;
-        }
+    .slider-container input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        background: #00aaff;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 0 10px rgba(0, 170, 255, 0.5);
+    }
 
-        .btn-search {
-            background: #00aaff;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 0 16px;
-            transition: all 0.2s;
-        }
-        .btn-search:hover { background: #0088cc; }
+    /* --- Buttons --- */
+    .btn-action {
+        width: 100%;
+        padding: 12px;
+        font-weight: 700;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        border: 1px solid transparent;
+    }
 
-        /* --- Pharmacy Cards --- */
-        .pharmacy-card {
-            background: rgba(27, 38, 59, 0.8);
-            border: 1px solid rgba(0, 170, 255, 0.15);
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
-            transition: all 0.3s;
-        }
-        .pharmacy-card:hover {
-            border-color: #00aaff;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
+    .btn-gps {
+        background: rgba(0, 170, 255, 0.1);
+        color: #00aaff;
+        border-color: #00aaff;
+    }
 
-        /* --- Navigate Button --- */
-        .btn-navigate {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background-color: #00aaff;
-            color: white !important;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: background 0.2s;
-        }
-        .btn-navigate:hover { background-color: #33bbff; }
+    .btn-gps:hover {
+        background: #00aaff;
+        color: #fff;
+    }
 
-        /* --- Map Specifics --- */
-        #map { height: 100%; width: 100%; z-index: 1; }
-        
-        /* Leaflet Control Styling Customization for Dark Theme */
-        .leaflet-control-layers {
-            background: #151e2a;
-            border: 1px solid #00aaff;
-            color: #fff;
-            border-radius: 8px;
-        }
-        .leaflet-control-layers-expanded {
-            padding: 10px;
-            background: rgba(21, 30, 42, 0.95);
-        }
-        
-        .leaflet-popup-content-wrapper {
-            background: #151e2a;
-            color: #fff;
-            border: 1px solid #00aaff;
-        }
-        .leaflet-popup-tip { background: #151e2a; border: 1px solid #00aaff; border-top:none; border-left:none;}
-    </style>
+    .btn-search {
+        background: #00aaff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0 16px;
+        transition: all 0.2s;
+    }
+
+    .btn-search:hover {
+        background: #0088cc;
+    }
+
+    /* --- Pharmacy Cards --- */
+    .pharmacy-card {
+        background: rgba(27, 38, 59, 0.8);
+        border: 1px solid rgba(0, 170, 255, 0.15);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 12px;
+        transition: all 0.3s;
+    }
+
+    .pharmacy-card:hover {
+        border-color: #00aaff;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    /* --- Navigate Button --- */
+    .btn-navigate {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background-color: #00aaff;
+        color: white !important;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: background 0.2s;
+    }
+
+    .btn-navigate:hover {
+        background-color: #33bbff;
+    }
+
+    /* --- Map Specifics --- */
+    #map {
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+    }
+
+    /* Leaflet Control Styling Customization for Dark Theme */
+    .leaflet-control-layers {
+        background: #151e2a;
+        border: 1px solid #00aaff;
+        color: #fff;
+        border-radius: 8px;
+    }
+
+    .leaflet-control-layers-expanded {
+        padding: 10px;
+        background: rgba(21, 30, 42, 0.95);
+    }
+
+    .leaflet-popup-content-wrapper {
+        background: #151e2a;
+        color: #fff;
+        border: 1px solid #00aaff;
+        border-radius: 12px;
+        padding: 0;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .leaflet-popup-tip {
+        background: #151e2a;
+        border: 1px solid #00aaff;
+        border-top: none;
+        border-left: none;
+    }
+
+    .professional-popup .leaflet-popup-content {
+        margin: 0;
+        width: auto !important;
+    }
+
+    .pharmacy-popup-card i {
+        display: inline-block;
+        width: 16px;
+        text-align: center;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="finder-page-container">
     <div class="finder-layout">
-        
+
         <div class="sidebar-panel">
             <div class="sidebar-content">
-                
+
                 <div class="sidebar-header-area">
                     <div class="mb-6">
                         <h2 class="text-2xl font-bold text-white flex items-center">
@@ -266,10 +318,9 @@
                                 Enter Custom Location
                             </label>
                             <div class="flex gap-2 h-10">
-                                <input type="text" id="manualLocationInput" 
-                                       placeholder="City, Zip, or Area..." 
-                                       class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:border-blue-400 focus:outline-none transition-colors"
-                                       onkeypress="handleEnter(event)">
+                                <input type="text" id="manualLocationInput" placeholder="City, Zip, or Area..."
+                                    class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:border-blue-400 focus:outline-none transition-colors"
+                                    onkeypress="handleEnter(event)">
                                 <button onclick="searchManualLocation()" class="btn-search" title="Search Location">
                                     <i class="fas fa-search"></i>
                                 </button>
@@ -294,16 +345,20 @@
                                 <span id="radiusValue" class="text-blue-400 font-bold">10 km</span>
                             </div>
                             <div class="slider-container">
-                                <input id="radiusSlider" type="range" min="1" max="50" value="10" onchange="triggerSearchIfLocationExists()">
+                                <input id="radiusSlider" type="range" min="1" max="50" value="10"
+                                    onchange="triggerSearchIfLocationExists()">
                             </div>
                         </div>
                     </div>
 
-                    <div id="status" class="hidden mb-4 p-3 rounded-lg text-center text-sm font-medium bg-blue-900/20 border border-blue-500/30 text-blue-200"></div>
-                    
+                    <div id="status"
+                        class="hidden mb-4 p-3 rounded-lg text-center text-sm font-medium bg-blue-900/20 border border-blue-500/30 text-blue-200">
+                    </div>
+
                     <div class="flex justify-between items-end mb-3 pb-2 border-b border-slate-700">
                         <h3 class="text-lg font-semibold text-white">Nearby Pharmacies</h3>
-                        <span id="resultCount" class="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">0 found</span>
+                        <span id="resultCount" class="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">0
+                            found</span>
                     </div>
                 </div>
 
@@ -318,13 +373,17 @@
 
         <div class="map-container-wrapper">
             <div id="map"></div>
-            
-            <div id="map-loader" class="hidden absolute inset-0 bg-black/80 z-[1000] flex flex-col items-center justify-center backdrop-blur-sm">
-                <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-3"></div>
+
+            <div id="map-loader"
+                class="hidden absolute inset-0 bg-black/80 z-[1000] flex flex-col items-center justify-center backdrop-blur-sm">
+                <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-3">
+                </div>
                 <span class="text-blue-300 font-semibold tracking-wider text-sm">LOCATING...</span>
             </div>
 
-            <button onclick="recenterMap()" id="recenterBtn" class="hidden absolute bottom-8 right-6 z-[999] bg-slate-800 text-white p-3 rounded-full shadow-lg border border-slate-600 hover:bg-blue-600 hover:border-blue-500 transition-all" title="Center Map">
+            <button onclick="recenterMap()" id="recenterBtn"
+                class="hidden absolute bottom-8 right-6 z-[999] bg-slate-800 text-white p-3 rounded-full shadow-lg border border-slate-600 hover:bg-blue-600 hover:border-blue-500 transition-all"
+                title="Center Map">
                 <i class="fas fa-crosshairs"></i>
             </button>
         </div>
@@ -335,235 +394,257 @@
 
 
 {% block scripts %}
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-     crossorigin=""></script>
-    
-    <script>
-        const API_URL = '/api/find-pharmacies';
-        
-        let map;
-        let userLocation = null; 
-        let userMarkerLayer;
-        let pharmacyMarkerLayer;
-        
-        const statusEl = document.getElementById('status');
-        const resultsList = document.getElementById('results-list');
-        const manualInput = document.getElementById('manualLocationInput');
-        const getLocationBtn = document.getElementById('getLocationBtn');
-        const radiusSlider = document.getElementById('radiusSlider');
-        const radiusValue = document.getElementById('radiusValue');
-        const mapLoader = document.getElementById('map-loader');
-        const resultCount = document.getElementById('resultCount');
-        const recenterBtn = document.getElementById('recenterBtn');
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-        function initMap() {
-            const mapEl = document.getElementById('map');
-            if (!mapEl) return;
+<script>
+    const API_URL = '/api/find-pharmacies';
 
-            // 1. Define Map Modes (Tile Layers)
-            const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '© CARTO',
-                subdomains: 'abcd',
-                maxZoom: 20
-            });
+    let map;
+    let userLocation = null;
+    let userMarkerLayer;
+    let pharmacyMarkerLayer;
+    let radiusCircle = null; // New: visual radius indicator
 
-            const lightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '© CARTO',
-                subdomains: 'abcd',
-                maxZoom: 20
-            });
+    const statusEl = document.getElementById('status');
+    const resultsList = document.getElementById('results-list');
+    const manualInput = document.getElementById('manualLocationInput');
+    const getLocationBtn = document.getElementById('getLocationBtn');
+    const radiusSlider = document.getElementById('radiusSlider');
+    const radiusValue = document.getElementById('radiusValue');
+    const mapLoader = document.getElementById('map-loader');
+    const resultCount = document.getElementById('resultCount');
+    const recenterBtn = document.getElementById('recenterBtn');
 
-            const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap',
-                maxZoom: 19
-            });
+    function initMap() {
+        const mapEl = document.getElementById('map');
+        if (!mapEl) return;
 
-            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: '© Esri',
-                maxZoom: 19
-            });
-
-            // 2. Initialize Map with "Dark Mode" as default
-            map = L.map('map', { 
-                zoomControl: false, 
-                layers: [streetLayer] 
-            }).setView([20.59, 78.96], 5);
-
-            // 3. Add Layer Control (Top Right)
-            const baseMaps = {
-                "Dark Mode": darkLayer,
-                "Light Mode": lightLayer,
-                "Streets": streetLayer,
-                "Satellite": satelliteLayer
-            };
-            L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
-
-            // 4. Add Zoom Control (Moved to Bottom Right for better UX)
-            L.control.zoom({ position: 'bottomright' }).addTo(map);
-            
-            userMarkerLayer = L.layerGroup().addTo(map);
-            pharmacyMarkerLayer = L.layerGroup().addTo(map);
-            
-            setTimeout(() => { map.invalidateSize(); }, 200);
-            
-            radiusSlider.addEventListener('input', (e) => {
-                radiusValue.textContent = `${e.target.value} km`;
-            });
-        }
-
-        const userIcon = L.icon({
-            iconUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzAwYWFmZiIgd2lkdGg9IjQ4cHgiIGhlaWdodD0iNDhweCI+PHBhdGggZD0iTTEyIDJDOC4xMyAyIDUgNS4xMyA1IDljMCA1LjI1IDcgMTMgNyAxM3M3LTcuNzUgNy0xM2MwLTMuODctMy4xMy03LTctN3ptMCA5LjVjLTEuMzggMC0yLjUtMS4xMi0yLjUtMi41czEuMTItMi41IDIuNS0yLjUgMi41IDEuMTIgMi41IDIuNVMxMy4zOCAxMS41IDEyIDExLjV6Ii8+PC9zdmc+',
-            iconSize: [40, 40], iconAnchor: [20, 40], popupAnchor: [0, -40]
+        // 1. Define Map Modes (Tile Layers)
+        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
         });
 
-        const pharmacyIcon = L.icon({
-            iconUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmNTI1MiIgd2lkdGg9IjQwcHgiIGhlaWdodD0iNDBweCI+PHBhdGggZD0iTTEyIDJDOC4xMyAyIDUgNS4xMyA1IDljMCA1LjI1IDcgMTMgNyAxM3M3LTcuNzUgNy0xM2MwLTMuODctMy4xMy03LTctN3ptMSA5LjVoLTJWMTRoMnYtMi41em0wLTNoLTJWMTBoMnYxLjV6Ii8+PC9zdmc+',
-            iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32]
+        const lightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
         });
 
-        function getUserLocation() {
-            if (!navigator.geolocation) {
-                showStatus("Geolocation not supported.", "error");
-                return;
+        const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 19
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri',
+            maxZoom: 19
+        });
+
+        // 2. Initialize Map with "Dark Mode" as default
+        map = L.map('map', {
+            zoomControl: false,
+            layers: [streetLayer]
+        }).setView([20.59, 78.96], 5);
+
+        // 3. Add Layer Control (Top Right)
+        const baseMaps = {
+            "Dark Mode": darkLayer,
+            "Light Mode": lightLayer,
+            "Streets": streetLayer,
+            "Satellite": satelliteLayer
+        };
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+        // 4. Add Zoom Control (Moved to Bottom Right for better UX)
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        userMarkerLayer = L.layerGroup().addTo(map);
+        pharmacyMarkerLayer = L.layerGroup().addTo(map);
+
+        setTimeout(() => { map.invalidateSize(); }, 200);
+
+        radiusSlider.addEventListener('input', (e) => {
+            const radius = e.target.value;
+            radiusValue.textContent = `${radius} km`;
+
+            // Update circle radius in real-time as user slides
+            if (radiusCircle && userLocation) {
+                radiusCircle.setRadius(radius * 1000);
             }
-            
-            manualInput.value = "";
-            setLoading(true);
-            
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    userLocation = {
-                        lat: position.coords.latitude,
-                        lon: position.coords.longitude,
-                        type: 'gps',
-                        name: "Your Location"
-                    };
-                    
-                    updateUserMarker();
-                    handleSearch();
-                    showStatus("Using your current GPS location.", "success");
-                },
-                (error) => {
-                    setLoading(false);
-                    showStatus("Location access denied. Try custom location.", "error");
-                },
-                { timeout: 10000 }
-            );
+        });
+    }
+
+    const userIcon = L.icon({
+        iconUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzAwYWFmZiIgd2lkdGg9IjQ4cHgiIGhlaWdodD0iNDhweCI+PHBhdGggZD0iTTEyIDJDOC4xMyAyIDUgNS4xMyA1IDljMCA1LjI1IDcgMTMgNyAxM3M3LTcuNzUgNy0xM2MwLTMuODctMy4xMy03LTctN3ptMCA5LjVjLTEuMzggMC0yLjUtMS4xMi0yLjUtMi41czEuMTItMi41IDIuNS0yLjUgMi41IDEuMTIgMi41IDIuNVMxMy4zOCAxMS41IDEyIDExLjV6Ii8+PC9zdmc+',
+        iconSize: [40, 40], iconAnchor: [20, 40], popupAnchor: [0, -40]
+    });
+
+    const pharmacyIcon = L.icon({
+        iconUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmNTI1MiIgd2lkdGg9IjQwcHgiIGhlaWdodD0iNDBweCI+PHBhdGggZD0iTTEyIDJDOC4xMyAyIDUgNS4xMyA1IDljMCA1LjI1IDcgMTMgNyAxM3M3LTcuNzUgNy0xM2MwLTMuODctMy4xMy03LTctN3ptMSA5LjVoLTJWMTRoMnYtMi41em0wLTNoLTJWMTBoMnYxLjV6Ii8+PC9zdmc+',
+        iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32]
+    });
+
+    function getUserLocation() {
+        if (!navigator.geolocation) {
+            showStatus("Geolocation not supported.", "error");
+            return;
         }
 
-        async function searchManualLocation() {
-            const query = manualInput.value.trim();
-            
-            if(!query) {
-                showStatus("Please enter a city or area.", "error");
-                return;
-            }
+        manualInput.value = "";
+        setLoading(true);
 
-            setLoading(true);
-            
-            try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-                const data = await response.json();
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                userLocation = {
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude,
+                    type: 'gps',
+                    name: "Your Location"
+                };
 
-                if(data && data.length > 0) {
-                    const lat = parseFloat(data[0].lat);
-                    const lon = parseFloat(data[0].lon);
-                    
-                    userLocation = {
-                        lat: lat,
-                        lon: lon,
-                        type: 'manual',
-                        name: query
-                    };
-                    
-                    updateUserMarker();
-                    handleSearch();
-                    showStatus(`Location set to: ${data[0].name || query}`, "success");
-                } else {
-                    showStatus("Location not found. Try a major city.", "error");
-                    setLoading(false);
-                }
-            } catch (e) {
-                console.error(e);
-                showStatus("Error connecting to location service.", "error");
+                updateUserMarker();
+                handleSearch();
+                showStatus("Using your current GPS location.", "success");
+            },
+            (error) => {
+                setLoading(false);
+                showStatus("Location access denied. Try custom location.", "error");
+            },
+            { timeout: 10000 }
+        );
+    }
+
+    async function searchManualLocation() {
+        const query = manualInput.value.trim();
+
+        if (!query) {
+            showStatus("Please enter a city or area.", "error");
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+
+                userLocation = {
+                    lat: lat,
+                    lon: lon,
+                    type: 'manual',
+                    name: query
+                };
+
+                updateUserMarker();
+                handleSearch();
+                showStatus(`Location set to: ${data[0].name || query}`, "success");
+            } else {
+                showStatus("Location not found. Try a major city.", "error");
                 setLoading(false);
             }
+        } catch (e) {
+            console.error(e);
+            showStatus("Error connecting to location service.", "error");
+            setLoading(false);
+        }
+    }
+
+    function updateUserMarker() {
+        if (!userLocation) return;
+
+        userMarkerLayer.clearLayers();
+
+        // Add/Update User Marker
+        L.marker([userLocation.lat, userLocation.lon], { icon: userIcon })
+            .addTo(userMarkerLayer)
+            .bindPopup(`<b>${userLocation.name}</b><br>Searching radius: ${radiusSlider.value}km`)
+            .openPopup();
+
+        // Add/Update Radius Circle
+        if (radiusCircle) {
+            map.removeLayer(radiusCircle);
         }
 
-        function updateUserMarker() {
-            if (!userLocation) return;
-            
-            userMarkerLayer.clearLayers();
-            
-            L.marker([userLocation.lat, userLocation.lon], { icon: userIcon })
-                .addTo(userMarkerLayer)
-                .bindPopup(`<b>${userLocation.name}</b><br>Searching radius: ${radiusSlider.value}km`)
-                .openPopup();
-            
-            recenterMap();
-            recenterBtn.classList.remove('hidden');
+        radiusCircle = L.circle([userLocation.lat, userLocation.lon], {
+            radius: radiusSlider.value * 1000,
+            color: '#00aaff',
+            fillColor: '#00aaff',
+            fillOpacity: 0.2,
+            weight: 1,
+            dashArray: '5, 5',
+            interactive: false // So it doesn't block marker clicks/hovers
+        }).addTo(map);
+
+        recenterMap();
+        recenterBtn.classList.remove('hidden');
+    }
+
+    function recenterMap() {
+        if (map && userLocation) {
+            map.setView([userLocation.lat, userLocation.lon], 13);
         }
+    }
 
-        function recenterMap() {
-            if(map && userLocation) {
-                map.setView([userLocation.lat, userLocation.lon], 13);
-            }
+    function triggerSearchIfLocationExists() {
+        if (userLocation) handleSearch();
+    }
+
+    async function handleSearch() {
+        if (!userLocation) return;
+
+        try {
+            const radius = radiusSlider.value;
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_lat: userLocation.lat,
+                    user_lon: userLocation.lon,
+                    radius_km: parseFloat(radius)
+                })
+            });
+
+            if (!response.ok) throw new Error('API Error');
+            const pharmacies = await response.json();
+            renderResults(pharmacies);
+
+        } catch (error) {
+            console.error(error);
+            showStatus("Error fetching pharmacies.", "error");
+        } finally {
+            setLoading(false);
         }
+    }
 
-        function triggerSearchIfLocationExists() {
-            if(userLocation) handleSearch();
-        }
+    function renderResults(pharmacies) {
+        resultsList.innerHTML = "";
+        pharmacyMarkerLayer.clearLayers();
+        resultCount.textContent = `${pharmacies.length} found`;
 
-        async function handleSearch() {
-            if(!userLocation) return;
-            
-            try {
-                const radius = radiusSlider.value;
-                
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_lat: userLocation.lat,
-                        user_lon: userLocation.lon,
-                        radius_km: parseInt(radius, 10)
-                    })
-                });
-
-                if (!response.ok) throw new Error('API Error');
-                const pharmacies = await response.json();
-                renderResults(pharmacies);
-                
-            } catch (error) {
-                console.error(error);
-                showStatus("Error fetching pharmacies.", "error");
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        function renderResults(pharmacies) {
-            resultsList.innerHTML = "";
-            pharmacyMarkerLayer.clearLayers();
-            resultCount.textContent = `${pharmacies.length} found`;
-            
-            if (pharmacies.length === 0) {
-                resultsList.innerHTML = `
+        if (pharmacies.length === 0) {
+            resultsList.innerHTML = `
                     <div class="text-center py-8">
                         <p class="text-slate-400 font-medium">No pharmacies found within ${radiusSlider.value} km.</p>
                         <p class="text-slate-600 text-xs mt-1">Try increasing the search radius.</p>
                     </div>`;
-                return;
-            }
+            return;
+        }
 
-            pharmacies.forEach((p, index) => {
-                // FIXED: Google Maps Navigation Link
-                const googleDirectionsLink = `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lon}&destination=${p.latitude},${p.longitude}&travelmode=driving`;
+        pharmacies.forEach((p, index) => {
+            // FIXED: Google Maps Navigation Link
+            const googleDirectionsLink = `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lon}&destination=${p.latitude},${p.longitude}&travelmode=driving`;
 
-                const card = document.createElement('div');
-                card.className = 'pharmacy-card group';
-                card.innerHTML = `
+            const card = document.createElement('div');
+            card.className = 'pharmacy-card group';
+            card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="pr-2">
                             <h4 class="text-white font-semibold text-base mb-1">${p.name}</h4>
@@ -586,63 +667,95 @@
                         </div>
                     </div>
                 `;
-                resultsList.appendChild(card);
+            resultsList.appendChild(card);
 
-                const marker = L.marker([p.latitude, p.longitude], { icon: pharmacyIcon })
-                    .addTo(pharmacyMarkerLayer);
+            const marker = L.marker([p.latitude, p.longitude], { icon: pharmacyIcon })
+                .addTo(pharmacyMarkerLayer);
 
-                const popupContent = `
-                    <div style="min-width: 180px;">
-                        <b style="color:#fff">${p.name}</b>
-                        <div style="color:#aaa; font-size:11px; margin:4px 0;">${p.distance_km.toFixed(1)} km away</div>
-                        <a href="${googleDirectionsLink}" target="_blank" style="display:inline-block; margin-top:5px; color:#00aaff; font-weight:bold; text-decoration:none; font-size:12px;">
-                           Get Directions →
+            // --- Professional Hover Popup Card ---
+            const popupContent = `
+                    <div class="pharmacy-popup-card" style="padding: 5px; min-width: 220px; font-family: 'Inter', sans-serif;">
+                        <div style="display: flex; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(0, 170, 255, 0.2); padding-bottom: 8px;">
+                            <div style="background: rgba(0, 170, 255, 0.1); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-right: 10px;">
+                                <i class="fas fa-file-medical" style="color: #00aaff; font-size: 16px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <h4 style="margin: 0; color: #fff; font-size: 14px; font-weight: 700; line-height: 1.2;">${p.name}</h4>
+                                <div style="color: #00aaff; font-size: 11px; font-weight: 600; margin-top: 2px;">${p.distance_km.toFixed(1)} km away</div>
+                            </div>
+                        </div>
+                        <p style="margin: 0 0 10px 0; color: #94a3b8; font-size: 11px; line-height: 1.4;">
+                            <i class="fas fa-map-marker-alt" style="margin-right: 4px; color: #475569;"></i> ${p.address}
+                        </p>
+                        <a href="${googleDirectionsLink}" target="_blank" 
+                           style="display: flex; align-items: center; justify-content: center; gap: 6px; background: #00aaff; color: #fff !important; text-decoration: none; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s;">
+                            <i class="fas fa-directions"></i> Get Directions
                         </a>
                     </div>
                 `;
-                marker.bindPopup(popupContent);
+
+            marker.bindPopup(popupContent, {
+                closeButton: false,
+                offset: L.point(0, -20),
+                className: 'professional-popup'
             });
 
-            if(pharmacies.length > 0) {
-                const group = new L.featureGroup([ ...pharmacyMarkerLayer.getLayers(), ...userMarkerLayer.getLayers() ]);
-                map.fitBounds(group.getBounds().pad(0.15));
-            }
+            // Hover Listeners
+            marker.on('mouseover', function (e) {
+                this.openPopup();
+            });
+            // Note: We keep it open so user can click "Get Directions". 
+            // Leaflet closes previous popups when a new one opens.
+            // If the user wants it to close on mouseout, we can add that, 
+            // but then clicking the link is hard. 
+            // Standard behavior for "cards" is usually click or persistent hover.
+            // Let's add a small delay for mouseout to allow moving into the popup.
+
+            marker.on('mouseout', function (e) {
+                // No-op or small delay if we want auto-close. 
+                // For now, I'll let it stay open until another is hovered.
+            });
+        });
+
+        if (pharmacies.length > 0) {
+            const group = new L.featureGroup([...pharmacyMarkerLayer.getLayers(), ...userMarkerLayer.getLayers()]);
+            map.fitBounds(group.getBounds().pad(0.15));
         }
+    }
 
-        window.flyToPharmacy = function(lat, lng, index) {
-            map.flyTo([lat, lng], 16);
-            setTimeout(() => {
-                const markers = pharmacyMarkerLayer.getLayers();
-                if(markers[index]) markers[index].openPopup();
-            }, 1000);
-        };
+    window.flyToPharmacy = function (lat, lng, index) {
+        map.flyTo([lat, lng], 16);
+        setTimeout(() => {
+            const markers = pharmacyMarkerLayer.getLayers();
+            if (markers[index]) markers[index].openPopup();
+        }, 1000);
+    };
 
-        function handleEnter(e) {
-            if(e.key === 'Enter') searchManualLocation();
+    function handleEnter(e) {
+        if (e.key === 'Enter') searchManualLocation();
+    }
+
+    function showStatus(msg, type) {
+        if (!msg) {
+            statusEl.classList.add('hidden');
+            return;
         }
-
-        function showStatus(msg, type) {
-            if(!msg) {
-                statusEl.classList.add('hidden');
-                return;
-            }
-            statusEl.classList.remove('hidden');
-            statusEl.innerHTML = msg;
-            statusEl.className = `mb-4 p-3 rounded-lg text-center text-sm font-medium border transition-all ${
-                type === 'error' 
-                ? 'bg-red-900/30 text-red-200 border-red-800' 
-                : 'bg-blue-900/30 text-blue-200 border-blue-800'
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = msg;
+        statusEl.className = `mb-4 p-3 rounded-lg text-center text-sm font-medium border transition-all ${type === 'error'
+            ? 'bg-red-900/30 text-red-200 border-red-800'
+            : 'bg-blue-900/30 text-blue-200 border-blue-800'
             }`;
-        }
+    }
 
-        function setLoading(bool) {
-            if(bool) {
-                mapLoader.classList.remove('hidden');
-            } else {
-                mapLoader.classList.add('hidden');
-            }
+    function setLoading(bool) {
+        if (bool) {
+            mapLoader.classList.remove('hidden');
+        } else {
+            mapLoader.classList.add('hidden');
         }
+    }
 
-        document.addEventListener('DOMContentLoaded', initMap);
-    </script>
+    document.addEventListener('DOMContentLoaded', initMap);
+</script>
 {% endblock %}

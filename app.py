@@ -274,68 +274,92 @@ def dashboard_page():
     
     try:
         df_viz = pd.read_csv(file_path)
-    except FileNotFoundError:
-        flash('Error: Visualization dataset "final_medicine_dataset_with_age_group.csv" not found in Datasets folder.', 'danger')
-        return render_template('dashboard.html', error="Dataset file not found.")
     except Exception as e:
         flash(f'Error loading dataset: {e}', 'danger')
         return render_template('dashboard.html', error=f"Error loading dataset: {e}")
 
+    # Extract all unique reasons (conditions)
     unique_reasons_set = set()
     for row in df_viz['reason'].dropna():
-        reasons = row.split(',')
-        for reason in reasons:
-            unique_reasons_set.add(reason.strip())
-            
+        reasons = [r.strip() for r in str(row).split(',')]
+        unique_reasons_set.update(reasons)
     all_reasons = sorted(list(unique_reasons_set))
 
-    selected_reason = 'All'
-    selected_plot_type = 'pie' 
-    total_medicines = 0
-    chart_html = None
-    error = None
+    selected_reason = request.form.get('reason_filter', 'All')
+    
+    # 1. Prepare Global Analytics (Top medicines by versatility - count of reasons)
+    # This shows "Top Quality" graph data for users to see which meds are most versatile
+    df_viz['reason_count'] = df_viz['reason'].apply(lambda x: len(str(x).split(',')) if pd.notnull(x) else 0)
+    top_versatile = df_viz.nlargest(10, 'reason_count')[['name', 'reason_count']].to_dict('records')
+    
+    # 2. Filter data if a reason is selected
+    age_dist = []
+    condition_stats = {"total": len(df_viz), "selected_count": 0}
+    top_meds_for_condition = []
 
-    if request.method == 'POST':
-        selected_reason = request.form.get('reason_filter')
-        selected_plot_type = request.form.get('plot_type', 'pie')
+    # 2. Filter data if a reason is selected
+    age_dist = []
+    condition_stats = {
+        "total": len(df_viz), 
+        "selected_count": 0,
+        "avg_substitutes": 0,
+        "primary_system": "N/A"
+    }
+    top_meds_for_condition = []
+    system_impact = {
+        "Respiratory": 0,
+        "Nervous System": 0,
+        "Cardiovascular": 0,
+        "Gastrointestinal": 0,
+        "Infection/Immune": 0,
+        "Musculoskeletal": 0
+    }
 
     if selected_reason != 'All':
-        df_filtered = df_viz[df_viz['reason'].str.contains(selected_reason, case=False, na=False)]
+        df_filtered = df_viz[df_viz['reason'].str.contains(selected_reason, case=False, na=False)].copy()
+        condition_stats["selected_count"] = len(df_filtered)
         
-        if df_filtered.empty:
-            error = f"No data found for the condition: {selected_reason}"
-        else:
-            total_medicines = len(df_filtered)
-            age_breakdown = df_filtered.groupby('age_group').size().reset_index(name='Count')
-            chart_title = f'Age Group Breakdown for "{selected_reason}"'
+        if not df_filtered.empty:
+            # Age Group Distribution
+            age_dist = df_filtered.groupby('age_group').size().reset_index(name='count').to_dict('records')
+            
+            # Top Medicines for this specific condition
+            top_meds_for_condition = df_filtered.head(8)[['name', 'age_group']].to_dict('records')
 
-            if selected_plot_type == 'bar':
-                fig = px.bar(
-                    age_breakdown, x='age_group', y='Count', color='age_group',
-                    title=chart_title, template='plotly_dark', text='Count'
-                )
-                fig.update_traces(textposition='outside')
-                fig.update_layout(xaxis_title='Age Group', yaxis_title='Number of Medicines')
-            else:
-                age_breakdown['legend_label'] = age_breakdown.apply(
-                    lambda row: f"{row['age_group'].capitalize()}: {row['Count']}", axis=1
-                )
-                fig = px.pie(
-                    age_breakdown, names='legend_label', values='Count', 
-                    title=chart_title, template='plotly_dark'
-                )
-                fig.update_traces(textposition='inside', textinfo='percent')
+            # --- ADVANCED ANALYSIS: Substitution Density ---
+            sub_cols = ['substitute0', 'substitute1', 'substitute2', 'substitute3', 'substitute4']
+            df_filtered['sub_count'] = df_filtered[sub_cols].notnull().sum(axis=1)
+            condition_stats["avg_substitutes"] = round(df_filtered['sub_count'].mean(), 1)
+
+            # --- ADVANCED ANALYSIS: Biological System Impact ---
+            system_keywords = {
+                "Respiratory": ["lung", "breath", "respiratory", "cough", "nose", "throat", "airways", "asthma", "sinus"],
+                "Nervous System": ["anxiety", "brain", "nerve", "neuropathic", "central nervous", "sleep", "insomnia", "panic", "depression", "seizure"],
+                "Cardiovascular": ["heart", "blood pressure", "hypertension", "cholesterol", "circulatory", "cardiac", "artery", "stroke"],
+                "Gastrointestinal": ["stomach", "gut", "acid reflux", "digestion", "bowel", "ulcer", "piles", "nausea", "vomiting", "diarrhea"],
+                "Infection/Immune": ["bacterial", "fungal", "parasitic", "infection", "virus", "immune", "antibiotic", "microbial"],
+                "Musculoskeletal": ["pain relief", "muscle", "bone", "joint", "inflammation", "arthritis", "fever", "ache"]
+            }
+
+            for desc in df_filtered['description'].dropna():
+                desc_lower = str(desc).lower()
+                for system, keywords in system_keywords.items():
+                    if any(kw in desc_lower for kw in keywords):
+                        system_impact[system] += 1
             
-            chart_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
-            
+            # Find primary system
+            if any(system_impact.values()):
+                condition_stats["primary_system"] = max(system_impact, key=system_impact.get)
+
     return render_template(
         'dashboard.html',
         all_reasons=all_reasons,
         selected_reason=selected_reason,
-        total_medicines=total_medicines,
-        chart_html=chart_html,
-        selected_plot_type=selected_plot_type,
-        error=error
+        top_versatile=top_versatile,
+        age_dist=age_dist,
+        condition_stats=condition_stats,
+        top_meds_for_condition=top_meds_for_condition,
+        system_impact=system_impact
     )
 
 @app.route('/pharmacy-finder')
@@ -350,6 +374,8 @@ def find_pharmacies():
         data = request.json
         user_lat = float(data.get('user_lat'))
         user_lon = float(data.get('user_lon'))
+        # Get radius from request, fallback to global SEARCH_RADIUS_KM
+        radius_km = float(data.get('radius_km', SEARCH_RADIUS_KM))
     except Exception as e:
         print(f"Error parsing request: {e}")
         return jsonify({"error": f"Invalid request: {e}"}), 400
@@ -358,7 +384,7 @@ def find_pharmacies():
     for pharmacy in pharmacy_data:
         try:
             dist = haversine(user_lat, user_lon, pharmacy['latitude'], pharmacy['longitude'])
-            if dist <= SEARCH_RADIUS_KM:
+            if dist <= radius_km:
                 pharmacies_with_distance.append({
                     'name': pharmacy.get('Name', 'N/A'),
                     'address': pharmacy.get('Address', ''),

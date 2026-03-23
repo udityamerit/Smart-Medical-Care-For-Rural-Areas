@@ -1,266 +1,420 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}Advanced Med Analyser - AIOPharmacy{% endblock %}
 
 {% block styles %}
 <style>
-    .dashboard-title {
-        text-align: center;
-        margin-bottom: 20px;
-        color: white;
-        font-weight: 600;
+    :root {
+        --dash-bg: #0b1120;
+        --card-bg: rgba(30, 41, 59, 0.7);
+        --accent: #00aaff;
+        --glow: rgba(0, 170, 255, 0.3);
+        --success: #00e676;
+        --warning: #ffab00;
+        --danger: #ff5252;
     }
 
-    .alert-danger {
-        color: #f8d7da;
-        background-color: #721c24;
-        border-color: #f5c6cb;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-        grid-column: 1 / -1;
-    }
-
-    /* --- STYLES FOR FILTER FORM --- */
-    .filter-form {
-        background-color: #1a202c; /* <-- CHANGED */
-        border: none; /* <-- CHANGED */
-        border-radius: 10px;
-        padding: 25px;
-        box-shadow: none; /* <-- CHANGED */
-        margin-bottom: 25px;
-        max-width: 100%; /* Keeps form inside container */
-        box-sizing: border-box;
-    }
-
-    /* --- MODIFIED CSS for H3 --- */
-    .filter-form h3 {
-        color: white;
-        margin-top: 0;
-        /* Removed large margin-bottom, flex-end alignment will handle it */
-        margin-bottom: 0; 
-        border-bottom: 2px solid #00aaff;
-        padding-bottom: 10px;
-        /* Added to make border only span the text width */
-        display: inline-block; 
-    }
-
-    /* --- MODIFIED CSS for Filter Controls --- */
-    .filter-controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        align-items: flex-end;
-        /* Changed from space-between to flex-start to group items */
-        justify-content: flex-start; 
-    }
-
-    .filter-group {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-width: 250px;
-        max-width: 500px; /* Restrict width to prevent overflow */
-    }
-
-    .filter-group label {
-        color: #ccc;
-        margin-bottom: 8px;
-        font-weight: 600;
-    }
-
-    .filter-group select {
-        padding: 12px;
-        border-radius: 5px;
-        border: 1px solid #555;
-        background-color: #333;
-        color: white;
-        font-size: 1rem;
+    .dashboard-container {
+        padding: 30px;
+        color: #f1f5f9;
         font-family: 'Poppins', sans-serif;
-        width: 100%; /* Make sure it stays inside the group */
-        box-sizing: border-box;
     }
 
-    .filter-submit-btn {
-        padding: 12px 25px;
-        font-size: 1rem;
-        font-weight: 600;
-        color: white;
-        background-color: #00aaff;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        height: 47px;
-        white-space: nowrap;
+    .dash-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        background: var(--card-bg);
+        padding: 25px;
+        border-radius: 20px;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     }
 
-    .filter-submit-btn:hover {
-        background-color: #0077bb;
+    .dash-title-group h1 {
+        font-size: 2rem;
+        margin: 0;
+        background: linear-gradient(90deg, #fff, #00aaff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
     }
 
-    /* --- RESULTS SECTION --- */
-    .results-grid {
+    /* Metrics Grid */
+    .metrics-grid {
         display: grid;
-        grid-template-columns: 1fr 2fr;
-        gap: 25px;
-        align-items: stretch;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
     }
 
     .metric-card {
-        background-color: #344c80; /* <-- CHANGED */
-        border: none; /* <-- CHANGED */
-        border-radius: 10px;
+        background: var(--card-bg);
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+
+    .metric-label {
+        color: #94a3b8;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+    }
+
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: var(--accent);
+    }
+
+    /* Professional Grid */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 25px;
+        margin-bottom: 25px;
+    }
+
+    .analysis-card {
+        background: var(--card-bg);
         padding: 25px;
-        box-shadow: none; /* <-- CHANGED */
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .analysis-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(0, 170, 255, 0.03) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+    .card-header {
         display: flex;
-        flex-direction: column;
-        justify-content: center;
+        justify-content: space-between;
         align-items: center;
-        text-align: center;
+        margin-bottom: 20px;
     }
 
-    .metric-card-title {
-        color: #ccc;
-        font-size: 1.2rem;
-        font-weight: 600;
-        margin-bottom: 15px;
-    }
-
-    .metric-card-value {
-        color: #00aaff;
-        font-size: 4rem;
+    .card-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
         font-weight: 700;
-        line-height: 1;
+        color: #fff;
     }
 
-    .chart-container {
-        background-color: #1a202c; /* <-- CHANGED */
-        border: none; /* <-- CHANGED */
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: none; /* <-- CHANGED */
-    }
-
-    .prompt-message {
-        background-color: #1a202c; /* <-- CHANGED */
-        border: 1px dashed #555; /* <-- Kept border for style */
-        border-radius: 10px;
-        padding: 40px;
-        text-align: center;
-        color: #888;
-        grid-column: 1 / -1;
-    }
-
-    /* --- PLOT SWITCHER --- */
-    .plot-switcher {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-bottom: 15px;
-    }
-
-    .plot-switcher-btn {
-        padding: 8px 16px;
-        font-size: 0.9rem;
+    .insight-badge {
+        font-size: 0.7rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        background: rgba(0, 170, 255, 0.1);
+        color: var(--accent);
+        border: 1px solid rgba(0, 170, 255, 0.2);
         font-weight: 600;
-        color: #ccc;
-        background-color: #333;
-        border: 1px solid #555;
-        border-radius: 5px;
+    }
+
+    /* Bottom List Section */
+    .list-section {
+        background: var(--card-bg);
+        padding: 25px;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .med-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+
+    .med-table th {
+        text-align: left;
+        color: #94a3b8;
+        font-size: 0.8rem;
+        padding: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .med-table td {
+        padding: 15px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+        font-size: 0.95rem;
+    }
+
+    .status-dot {
+        height: 8px;
+        width: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+
+    .dot-high { background: var(--success); }
+    .dot-med { background: var(--warning); }
+    .dot-low { background: var(--danger); }
+
+    /* Filter Styling */
+    .filter-select {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(0, 170, 255, 0.3);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 12px;
+        min-width: 250px;
+    }
+
+    .filter-btn {
+        background: var(--accent);
+        color: #0b1120;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 12px;
+        font-weight: 700;
         cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .plot-switcher-btn:hover {
-        background-color: #444;
-        color: white;
-    }
-
-    .plot-switcher-btn.active {
-        background-color: #00aaff;
-        border-color: #00aaff;
-        color: white;
-    }
-
-    /* --- RESPONSIVE DESIGN --- */
-    @media (max-width: 900px) {
-        .results-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    @media (max-width: 600px) {
-        .filter-controls {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .filter-group {
-            max-width: 100%;
-        }
-
-        .filter-submit-btn {
-            width: 100%;
-            height: auto;
-        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="content-wrapper" style="padding: 20px;">
-    <h1 class="dashboard-title">Select a Condition to Analyze the Medicine</h1>
-
-    <form class="filter-form" method="POST" action="{{ url_for('dashboard_page') }}">
-        <div class="filter-controls">
-            
-            <div class="filter-group">
-                <label for="reason-filter">Condition (Reason)</label>
-                <select name="reason_filter" id="reason-filter">
-                    <option value="All">-- Select a Condition --</option>
-                    {% for reason in all_reasons %}
-                        <option value="{{ reason }}" {% if reason == selected_reason %}selected{% endif %}>
-                            {{ reason }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit" class="filter-submit-btn">Analyze</button>
+<div class="dashboard-container">
+    <div class="dash-header">
+        <div class="dash-title-group">
+            <h1>Advanced Med Analyser</h1>
+            <p>Clinical Intelligence & Dataset Visualization</p>
         </div>
-    </form>
-    <div class="results-grid">
-        {% if error %}
-            <div class="alert alert-danger">{{ error }}</div>
-        {% elif selected_reason != 'All' %}
-            <div class="metric-card">
-                <div class="metric-card-title">
-                    Total Medicines Available for "{{ selected_reason }}"
-                </div>
-                <div class="metric-card-value">{{ total_medicines }}</div>
-            </div>
+        
+        <form class="filter-section" method="POST" action="{{ url_for('dashboard_page') }}" style="display:flex; gap:10px;">
+            <select name="reason_filter" class="filter-select">
+                <option value="All">-- Select Medical Category --</option>
+                {% for reason in all_reasons %}
+                    <option value="{{ reason }}" {% if reason == selected_reason %}selected{% endif %}>
+                        {{ reason }}
+                    </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="filter-btn">
+                <i class="fas fa-brain mr-2"></i> Process Data
+            </button>
+        </form>
+    </div>
 
-            <div class="chart-container">
-                <form class="plot-switcher" method="POST" action="{{ url_for('dashboard_page') }}">
-                    <input type="hidden" name="reason_filter" value="{{ selected_origin }}">
-                    <button type="submit" name="plot_type" value="pie"
-                        class="plot-switcher-btn {% if selected_plot_type == 'pie' %}active{% endif %}">
-                        Pie Chart
-                    </button>
-                    <button type="submit" name="plot_type" value="bar"
-                        class="plot-switcher-btn {% if selected_plot_type == 'bar' %}active{% endif %}">
-                        Bar Chart
-                    </button>
-                </form>
-                {% if chart_html %}
-                    {{ chart_html | safe }}
+    <!-- Quick Metrics -->
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-label">Dataset Volume</div>
+            <div class="metric-value">{{ condition_stats.total }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Category Match</div>
+            <div class="metric-value">{{ condition_stats.selected_count }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Primary Target</div>
+            <div class="metric-value" style="font-size: 1.1rem; padding-top: 10px;">{{ condition_stats.primary_system }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Sub. Density</div>
+            <div class="metric-value">{{ condition_stats.avg_substitutes }}/5</div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <!-- Chart 1: Biological System Radar -->
+        <div class="analysis-card">
+            <div class="card-header">
+                <h3>Physiological System Targeting</h3>
+                <span class="insight-badge">Biological Focus</span>
+            </div>
+            <div id="radar-chart"></div>
+            {% if selected_reason == 'All' %}
+            <div style="text-align: center; color: #94a3b8; font-size: 0.8rem; margin-top: 20px;">
+                Select a category to see biological targeting
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Chart 2: Competition/Substitution -->
+        <div class="analysis-card">
+            <div class="card-header">
+                <h3>Substitution Availability</h3>
+                <span class="insight-badge">Market Analysis</span>
+            </div>
+            <div id="gauge-chart"></div>
+            <div style="text-align: center; margin-top: -20px;">
+                <p style="color: #94a3b8; font-size: 0.9rem;">
+                    Average alternatives found: <strong>{{ condition_stats.avg_substitutes }}</strong> per medicine
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global/Filtered List -->
+    <div class="list-section">
+        <div class="card-header">
+            <h3>{% if selected_reason == 'All' %}Top Analytics (Global){% else %}Medicines for {{ selected_reason }}{% endif %}</h3>
+            <span class="insight-badge">Clinical Catalog</span>
+        </div>
+        <table class="med-table">
+            <thead>
+                <tr>
+                    <th>Medicine Name</th>
+                    <th>Age Group</th>
+                    <th>System Targeting</th>
+                    <th>Analytical Confidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if selected_reason == 'All' %}
+                    {% for med in top_versatile %}
+                    <tr>
+                        <td style="font-weight:600;">{{ med.name }}</td>
+                        <td><span class="insight-badge">Multi-Use</span></td>
+                        <td>Generic Coverage</td>
+                        <td><span class="status-dot dot-high"></span> Highly Verified</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    {% for med in top_meds_for_condition %}
+                    <tr>
+                        <td style="font-weight:600;">{{ med.name }}</td>
+                        <td><span class="insight-badge">{{ med.age_group }}</span></td>
+                        <td>{{ condition_stats.primary_system }}</td>
+                        <td>
+                            {% if condition_stats.avg_substitutes > 3 %}
+                            <span class="status-dot dot-high"></span> Optimized
+                            {% else %}
+                            <span class="status-dot dot-med"></span> Standard
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
                 {% endif %}
-            </div>
-        {% else %}
-            <div class="prompt-message">
-                <h3>Please select a condition from the dropdown to see the analysis.</h3>
-            </div>
-        {% endif %}
+            </tbody>
+        </table>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const themeConfig = {
+            mode: 'dark',
+            monochrome: {
+                enabled: true,
+                color: '#00aaff',
+                shadeIntensity: 0.65
+            }
+        };
+
+        // 1. Radar Chart: Biological Systems
+        {% if selected_reason != 'All' %}
+        const sysData = {{ system_impact | tojson }};
+        const sysLabels = Object.keys(sysData);
+        const sysValues = Object.values(sysData);
+
+        const rOptions = {
+            series: [{
+                name: 'Data Point Count',
+                data: sysValues
+            }],
+            chart: {
+                height: 380,
+                type: 'radar',
+                toolbar: { show: false },
+                background: 'transparent'
+            },
+            labels: sysLabels,
+            colors: ['#00aaff'],
+            markers: {
+                size: 4,
+                colors: ['#fff'],
+                strokeColor: '#00aaff',
+                strokeWidth: 2,
+            },
+            xaxis: {
+                labels: {
+                    style: {
+                        colors: ["#94a3b8", "#94a3b8", "#94a3b8", "#94a3b8", "#94a3b8", "#94a3b8"],
+                        fontSize: '11px'
+                    }
+                }
+            },
+            yaxis: { show: false },
+            theme: themeConfig
+        };
+        new ApexCharts(document.querySelector("#radar-chart"), rOptions).render();
+        {% endif %}
+
+        // 2. Radial Gauge: Substitution Density
+        const subAvg = parseFloat("{{ condition_stats.avg_substitutes }}");
+        const subPercent = (subAvg / 5) * 100;
+
+        const gOptions = {
+            series: [subPercent],
+            chart: {
+                height: 350,
+                type: 'radialBar',
+                background: 'transparent'
+            },
+            plotOptions: {
+                radialBar: {
+                    startAngle: -135,
+                    endAngle: 135,
+                    hollow: { size: '70%', },
+                    track: {
+                        background: 'rgba(255,255,255,0.05)',
+                        strokeWidth: '97%',
+                    },
+                    dataLabels: {
+                        name: {
+                            show: true,
+                            color: '#94a3b8',
+                            fontSize: '14px',
+                            offsetY: -10
+                        },
+                        value: {
+                            formatter: function(val) {
+                                return (val / 100 * 5).toFixed(1) + " / 5";
+                            },
+                            color: '#fff',
+                            fontSize: '30px',
+                            show: true,
+                        }
+                    }
+                }
+            },
+            fill: {
+                type: 'gradient',
+                gradient: {
+                    shade: 'dark',
+                    type: 'horizontal',
+                    shadeIntensity: 0.5,
+                    gradientToColors: ['#00e676'],
+                    inverseColors: true,
+                    opacityFrom: 1,
+                    opacityTo: 1,
+                    stops: [0, 100]
+                }
+            },
+            labels: ['Availability Score'],
+            stroke: { lineCap: 'round' }
+        };
+        new ApexCharts(document.querySelector("#gauge-chart"), gOptions).render();
+    });
+</script>
 {% endblock %}

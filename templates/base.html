@@ -18,6 +18,46 @@
     {% block styles %}{% endblock %}
 </head>
 <body>
+    <!-- Professional Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loader-container">
+            <div class="loader-logo">
+                <svg class="heart-signal-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="capsuleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#00aaff" />
+                            <stop offset="50%" stop-color="#00aaff" />
+                            <stop offset="50%" stop-color="#ffffff" />
+                            <stop offset="100%" stop-color="#ffffff" />
+                        </linearGradient>
+                    </defs>
+                    <!-- Refined Symmetric Heart Foundation -->
+                    <path class="heart-frame" d="M50 85 C30 70 15 55 15 35 C15 20 25 15 35 15 C42 15 47 20 50 25 C53 20 58 15 65 15 C75 15 85 20 85 35 C85 55 70 70 50 85Z" 
+                          stroke="rgba(0, 170, 255, 0.5)" stroke-width="3" fill="none"/>
+                    
+                    <!-- Dynamic ECG Pulse Path (Professionally Aligned) -->
+                    <path class="ecg-path" d="M15 40 H30 L35 30 L42 60 L50 20 L58 75 L65 40 H85" 
+                          stroke="#00aaff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    
+                    <!-- Machine/Circuit Terminal Nodes -->
+                    <circle class="circuit-node" cx="15" cy="40" r="3" />
+                    <circle class="circuit-node" cx="85" cy="40" r="3" />
+                    <circle class="circuit-node" cx="50" cy="85" r="4" fill="#40c4ff"/>
+                    
+                    <!-- Medical Hybrid Element: Mini Capsule -->
+                    <g class="capsule-part" transform="translate(68, 35)">
+                        <rect width="14" height="6" rx="3" fill="url(#capsuleGrad)" stroke="#00aaff" stroke-width="0.5"/>
+                    </g>
+                </svg>
+            </div>
+            <div class="loading-percentage" id="loading-percentage">0%</div>
+            <div class="loading-bar-wrapper">
+                <div class="loading-bar-progress" id="loading-bar"></div>
+            </div>
+            <p style="color: #475569; font-size: 12px; margin-top: 15px; letter-spacing: 2px;">INITIALIZING AI SYSTEMS</p>
+        </div>
+    </div>
+
     <div id="particles-js"></div>
 
     <div id="animated-character" data-aos="fade-right" data-aos-delay="1000">
@@ -27,28 +67,17 @@
     <header class="main-header">
         <nav id="main-nav">
             <a href="{{ url_for('home') }}" class="nav-logo">
-                <svg class="aio-logo" viewBox="0 0 200 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="brandGradient" x1="0" y1="0" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#00aaff"/>
-                            <stop offset="100%" stop-color="#0077cc"/>
-                        </linearGradient>
-                    </defs>
-                    
-                    <g transform="translate(0, 5)">
-                        <path d="M20 0L37.32 10V30L20 40L2.68 30V10L20 0Z" fill="url(#brandGradient)"/>
-                        <path d="M20 8V32M8 20H32" stroke="#0d1b2a" stroke-width="5" stroke-linecap="round"/>
-                        <circle cx="35" cy="35" r="3" fill="#40c4ff"/>
-                    </g>
-
-                    <text x="50" y="35" font-family="'Poppins', sans-serif" font-weight="700" font-size="22" fill="#ffffff" letter-spacing="1">
-                        AIO
-                    </text>
-                    
-                    <text x="105" y="35" font-family="'Poppins', sans-serif" font-weight="300" font-size="22" fill="#a7a9be">
-                        Pharmacy
-                    </text>
+                <svg class="heart-signal-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:45px; height:45px; vertical-align: middle; margin-right: 10px;">
+                    <path class="heart-frame" d="M50 85 C30 70 15 55 15 35 C15 20 25 15 35 15 C42 15 47 20 50 25 C53 20 58 15 65 15 C75 15 85 20 85 35 C85 55 70 70 50 85Z" 
+                          stroke="rgba(0, 170, 255, 0.8)" stroke-width="3.5" fill="none"/>
+                    <path class="ecg-path" d="M15 40 H30 L35 30 L42 60 L50 20 L58 75 L65 40 H85" 
+                          stroke="#00aaff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <circle class="circuit-node" cx="50" cy="85" r="5" fill="#40c4ff"/>
                 </svg>
+                <div class="nav-logo-text">
+                    <span class="logo-text-primary">AIO</span>
+                    <span class="logo-text-secondary">Pharmacy</span>
+                </div>
             </a>
             
             <div class="nav-links">
@@ -100,7 +129,39 @@
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     
     <script>
+        // Loading Screen Logic
+        (function() {
+            const loadingScreen = document.getElementById('loading-screen');
+            const loadingBar = document.getElementById('loading-bar');
+            const loadingPercentage = document.getElementById('loading-percentage');
+            
+            let progress = 0;
+            const targetTime = 7000; // 7 seconds
+            const intervalTime = 50; 
+            const increment = (intervalTime / targetTime) * 100;
+
+            const interval = setInterval(() => {
+                // Add some randomness to make it feel "real"
+                const jitter = Math.random() * 0.5;
+                progress += increment + jitter;
+                
+                if (progress > 100) progress = 100;
+                
+                loadingBar.style.width = progress + '%';
+                loadingPercentage.innerText = Math.round(progress) + '%';
+                
+                if (progress === 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        loadingScreen.classList.add('fade-out');
+                    }, 800);
+                }
+            }, intervalTime);
+        })();
+
         // Initialize AOS
+        // ...
+
         AOS.init({
             duration: 800,  
             once: true,     
