@@ -285,7 +285,6 @@ sequenceDiagram
     Engine-->>Flask: Formatted Results
     Flask-->>UI: Render Template
     UI-->>User: Display Recommendations
-    end
 ```
 
 ---
