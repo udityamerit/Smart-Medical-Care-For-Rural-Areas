@@ -138,8 +138,6 @@ AIOPharmacy leverages **Sentence Transformer** and **Maximal Marginal Relevance 
 
 ```mermaid
 graph TB
-    autonumber
-    rect rgb(255, 255, 255)
     subgraph "Presentation Layer"
         A[Web Interface<br/>HTML/CSS/JS]
         B[Voice Input<br/>Web Speech API]
@@ -200,8 +198,6 @@ graph TB
 
 ```mermaid
 flowchart TD
-    autonumber
-    rect rgb(255, 255, 255)
     START([User Searches<br/>Medicine/Symptom]) --> INPUT{Input Type?}
     
     INPUT -->|Text| TEXT[Text Input Processing]
@@ -265,9 +261,10 @@ flowchart TD
 ### **Component Interaction Diagram**
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#333333', 'lineColor': '#333333', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff'}}}%%
 sequenceDiagram
     autonumber
-    rect rgb(255, 255, 255)
+    
     actor User
     participant UI as Web Interface
     participant Flask as Flask Server
@@ -302,8 +299,6 @@ sequenceDiagram
 %%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inter', 'background': '#000000', 'primaryColor': '#ffffff', 'mainBkg': '#000000', 'nodeBorder': '#ffffff', 'lineColor': '#ffffff'}}}%%
 graph TD
     %% Node Definitions
-    autonumber
-    rect rgb(255, 255, 255)
     A[STEP 1: User Input]
     B[STEP 2: Auth & Validation]
     C[STEP 3: Text Preprocessing]
