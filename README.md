@@ -137,37 +137,49 @@ AIOPharmacy leverages **Sentence Transformer** and **Maximal Marginal Relevance 
 ### **High-Level Architecture**
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#ffffff', 'primaryBackground': '#ffffff', 'primaryColor': '#ffffff', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'mainBkg': '#ffffff', 'nodeBorder': '#cccccc', 'clusterBkg': '#f5f5f5', 'titleColor': '#000000', 'edgeLabelBackground': '#ffffff', 'lineColor': '#999999'}}}%%
 graph TB
-    subgraph "Presentation Layer"
-        A[Web Interface<br/>HTML/CSS/JS]
-        B[Voice Input<br/>Web Speech API]
-        C[Dashboard<br/>Plotly Charts]
+    subgraph MainSystem ["Medicine Recommendation System (White Box)"]
+        
+        subgraph "Presentation Layer"
+            A[Web Interface<br/>HTML/CSS/JS]
+            B[Voice Input<br/>Web Speech API]
+            C[Dashboard<br/>Plotly Charts]
+        end
+        
+        subgraph "Application Layer"
+            D[Flask Web Server]
+            E[Authentication<br/>Flask-Login]
+            F[Session Management]
+        end
+        
+        subgraph "Business Logic Layer"
+            G[Recommendation Engine]
+            H[Analytics Engine]
+            I[Search Processor]
+        end
+        
+        subgraph "ML/AI Layer"
+            J[TF-IDF Vectorizer]
+            K[Cosine Similarity]
+            L[NLP Processing]
+        end
+        
+        subgraph "Data Layer"
+            M[(Medicine Database<br/>CSV/Pickle)]
+            N[(User Data<br/>JSON)]
+            O[(Model Files<br/>PKL/NPZ)]
+        end
+
+        subgraph "Other Functions / Utilities"
+            P[System Logging & Monitoring]
+            Q[Error Handling]
+            R[External API Gateway]
+        end
+        
     end
     
-    subgraph "Application Layer"
-        D[Flask Web Server]
-        E[Authentication<br/>Flask-Login]
-        F[Session Management]
-    end
-    
-    subgraph "Business Logic Layer"
-        G[Recommendation Engine]
-        H[Analytics Engine]
-        I[Search Processor]
-    end
-    
-    subgraph "ML/AI Layer"
-        J[TF-IDF Vectorizer]
-        K[Cosine Similarity]
-        L[NLP Processing]
-    end
-    
-    subgraph "Data Layer"
-        M[(Medicine Database<br/>CSV/Pickle)]
-        N[(User Data<br/>JSON)]
-        O[(Model Files<br/>PKL/NPZ)]
-    end
-    
+    %% Core System Connections
     A --> D
     B --> D
     C --> D
@@ -187,10 +199,24 @@ graph TB
     J --> O
     K --> O
     
+    %% Connections for "Other Functions"
+    D -.-> P
+    D -.-> Q
+    D -.-> R
+    G -.-> P
+    J -.-> Q
+    
+    %% Original Styles
     style A fill:#3498db,stroke:#2980b9,stroke-width:2px,color:#fff
     style D fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#fff
     style G fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
     style M fill:#f39c12,stroke:#e67e22,stroke-width:2px,color:#fff
+    
+    %% New Styles for the White Box and Utilities
+    style MainSystem fill:#ffffff,stroke:#333333,stroke-width:3px,stroke-dasharray: 5 5
+    style P fill:#9b59b6,stroke:#8e44ad,stroke-width:2px,color:#fff
+    style Q fill:#9b59b6,stroke:#8e44ad,stroke-width:2px,color:#fff
+    style R fill:#9b59b6,stroke:#8e44ad,stroke-width:2px,color:#fff
 ```
 ---
 
