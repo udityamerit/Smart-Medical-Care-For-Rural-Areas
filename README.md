@@ -261,10 +261,7 @@ flowchart TD
 ### **Component Interaction Diagram**
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#333333', 'lineColor': '#333333', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff'}}}%%
 sequenceDiagram
-    autonumber
-    
     actor User
     participant UI as Web Interface
     participant Flask as Flask Server
@@ -272,7 +269,7 @@ sequenceDiagram
     participant Engine as Recommendation Engine
     participant ML as ML Model
     participant DB as Database
-    
+
     User->>UI: Enter Symptoms/Medicine
     UI->>Flask: POST /recommender
     Flask->>Auth: Verify Session
