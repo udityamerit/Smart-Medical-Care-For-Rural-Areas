@@ -62,6 +62,9 @@ AIOPharmacy leverages **Sentence Transformer** and **Maximal Marginal Relevance 
 
 ---
 
+![alt text](AIOPharmacy.png)
+---
+
 ## 🚀 Key Features
 
 ### 🔍 **Intelligent Search Engine**
