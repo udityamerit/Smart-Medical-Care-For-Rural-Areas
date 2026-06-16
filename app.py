@@ -18,13 +18,20 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import urllib.parse
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # --- App and Login Configuration ---
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 app.secret_key = 'your_super_secret_key_change_this'
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 CORS(app)
+
+# Configure cookies for Hugging Face Spaces (iframe embed context)
+if os.environ.get("SPACE_ID"):
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 login_manager = LoginManager()
 login_manager.init_app(app)
