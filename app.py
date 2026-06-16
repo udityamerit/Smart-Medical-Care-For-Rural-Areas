@@ -39,7 +39,45 @@ login_manager.login_view = 'login_page'
 login_manager.login_message_category = 'info'
 
 # --- User Model and Persistent Storage ---
+SPACE_ID = os.environ.get("SPACE_ID")
+HF_TOKEN = os.environ.get("HF_TOKEN")
 USERS_FILE = 'users.json'
+
+def sync_users_from_space():
+    if SPACE_ID and HF_TOKEN:
+        try:
+            print(f"Syncing users.json from Hugging Face Space: {SPACE_ID}")
+            from huggingface_hub import hf_hub_download
+            import shutil
+            downloaded_path = hf_hub_download(
+                repo_id=SPACE_ID,
+                filename="users.json",
+                repo_type="space",
+                token=HF_TOKEN
+            )
+            shutil.copy(downloaded_path, USERS_FILE)
+            print("Successfully synced users.json from Space repository.")
+        except Exception as e:
+            print(f"No existing users.json found in Space or error downloading: {e}")
+
+def sync_users_to_space():
+    if SPACE_ID and HF_TOKEN and os.path.exists(USERS_FILE):
+        try:
+            from huggingface_hub import HfApi
+            api = HfApi()
+            api.upload_file(
+                path_or_fileobj=USERS_FILE,
+                path_in_repo="users.json",
+                repo_id=SPACE_ID,
+                repo_type="space",
+                token=HF_TOKEN
+            )
+            print("Successfully uploaded and persisted users.json to Space repository.")
+        except Exception as e:
+            print(f"Error persisting users.json to Space repository: {e}")
+
+# Load initial user database from space storage
+sync_users_from_space()
 
 class User(UserMixin):
     def __init__(self, id, username, password, search_history=None):
@@ -68,6 +106,7 @@ def save_users(users_dict):
         users_data = {id: {'username': user.username, 'password': user.password, 'search_history': user.search_history} for id, user in users_dict.items()}
         with open(USERS_FILE, 'w') as f:
             json.dump(users_data, f, indent=4)
+        sync_users_to_space()
     except Exception as e:
         print(f"Error saving users: {e}")
 
