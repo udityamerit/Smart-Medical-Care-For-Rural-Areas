@@ -113,32 +113,36 @@ AIOPharmacy leverages **Sentence Transformer** and **Maximal Marginal Relevance 
 
 ## 🛠️ Technology Stack
 
-### **Backend Technologies**
+### **Backend & AI Technologies**
 
 | Technology | Purpose | Version |
 |------------|---------|---------|
-| ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white) | Core Language | 3.8+ |
-| ![Flask](https://img.shields.io/badge/Flask-000000?style=flat&logo=flask&logoColor=white) | Web Framework | 2.0+ |
-| ![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat&logo=pandas&logoColor=white) | Data Processing | Latest |
-| ![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-F7931E?style=flat&logo=scikit-learn&logoColor=white) | Machine Learning | Latest |
-| ![NumPy](https://img.shields.io/badge/NumPy-013243?style=flat&logo=numpy&logoColor=white) | Numerical Computing | Latest |
-| ![SciPy](https://img.shields.io/badge/SciPy-8CAAE6?style=flat&logo=scipy&logoColor=white) | Scientific Computing | Latest |
+| ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white) | Core Language | 3.11+ |
+| ![Flask](https://img.shields.io/badge/Flask-000000?style=flat&logo=flask&logoColor=white) | Web Framework & APIs | 2.0+ |
+| **Gemini 2.5 Flash** | AI Clinical Analysis & RAG Agent | Google Generative AI |
+| **LangChain** | AI Pipeline & RAG Orchestration | Latest |
+| **ChromaDB** | Vector Database for Semantic Search | Latest |
+| **Sentence Transformers** | Text Embeddings (`all-MiniLM-L6-v2`) | Latest |
+| ![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat&logo=pandas&logoColor=white) | Data Analysis & Wrangling | Latest |
+| ![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-F7931E?style=flat&logo=scikit-learn&logoColor=white) | Machine Learning Utilities | Latest |
+| **Hugging Face Hub** | Dynamic Two-Way Database Synchronization | Latest |
 
-### **Frontend Technologies**
+### **Frontend & Visual Technologies**
 
 | Technology | Purpose |
 |------------|---------|
-| ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white) | Structure |
-| ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white) | Styling |
-| ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black) | Interactivity |
-| ![Plotly](https://img.shields.io/badge/Plotly-3F4F75?style=flat&logo=plotly&logoColor=white) | Data Visualization |
+| ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white) | Page Structure |
+| ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white) | Styling & Keyframe UI Animations |
+| ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black) | Form Interactivity & Map Logic |
+| **Leaflet.js** | Interactive Maps & GPS Distance Finder (Dark Theme) |
+| ![Plotly](https://img.shields.io/badge/Plotly-3F4F75?style=flat&logo=plotly&logoColor=white) | Dynamic Data Visualization Charts |
 
-### **Libraries & APIs**
-- **Particles.js**: Animated background effects
-- **Web Speech API**: Voice recognition functionality
-- **EmailJS**: Email integration
-- **Font Awesome**: Icon library
-- **Google Fonts**: Typography (Poppins)
+### **Libraries & External Services**
+- **Web Speech API**: In-browser real-time voice-to-text transcription
+- **Particles.js**: Custom animated interactive background nodes
+- **EmailJS**: External client SMTP gateway messaging
+- **Font Awesome**: Premium icon repository
+- **Google Fonts**: Typography (Poppins & Outfit)
 
 ---
 
