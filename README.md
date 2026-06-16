@@ -1,3 +1,12 @@
+---
+title: AIOPharmacy
+emoji: ⚡
+colorFrom: yellow
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # AIOPharmacy 🏥💊
 
 <div align="center">
