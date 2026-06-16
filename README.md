@@ -2,8 +2,6 @@
 
 <div align="center">
 
-![AIOPharmacy Logo](static/doc.gif)
-
 ### Intelligent Medicine Recommendation System Powered by AI
 
 [![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
@@ -607,7 +605,6 @@ AIOPharmacy/
 │
 ├── 📁 static/                          # Static assets
 │   ├── style.css                       # Main stylesheet
-│   ├── doc.gif                         # Animated doctor
 │   └── scanning.gif                    # Search animation
 │
 ├── 📁 templates/                       # HTML templates
