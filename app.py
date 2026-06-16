@@ -1,4 +1,6 @@
 import os
+import secrets
+from datetime import timedelta
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import logging
@@ -24,15 +26,32 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # --- App and Login Configuration ---
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
-app.secret_key = 'your_super_secret_key_change_this'
+
+# ---------------------------------------------------------------
+# SECRET KEY — must be strong, random, and loaded from env.
+# A weak/hardcoded key lets attackers forge session cookies and
+# log in as any user without a password.
+# ---------------------------------------------------------------
+_fallback_key = secrets.token_hex(32)   # random each restart (safe fallback only)
+app.secret_key = os.environ.get('SECRET_KEY', _fallback_key)
+
+# ---------------------------------------------------------------
+# SESSION ISOLATION — every browser gets its own signed cookie.
+# These flags prevent one user's session leaking to another.
+# ---------------------------------------------------------------
+app.config['SESSION_COOKIE_HTTPONLY'] = True      # JS cannot read the cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'     # blocks cross-site cookie sending
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # sessions expire in 24h
+app.config['SESSION_COOKIE_NAME'] = 'aiopharmacy_session'  # unique cookie name
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 CORS(app)
 
-# Configure cookies for Hugging Face Spaces (iframe embed context)
-if os.environ.get("SPACE_ID"):
-    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-    app.config['SESSION_COOKIE_SECURE'] = True
+# Hugging Face Spaces runs behind HTTPS — enable Secure flag so
+# cookies are only sent over encrypted connections.
+if os.environ.get('SPACE_ID'):
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'   # needed for iframe embed on HF
+    app.config['SESSION_COOKIE_SECURE'] = True        # HTTPS only
 
 login_manager = LoginManager()
 login_manager.init_app(app)
