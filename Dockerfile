@@ -4,7 +4,7 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=5000
+    PORT=7860
 
 # Set working directory
 WORKDIR /app
@@ -28,7 +28,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 COPY . .
 
 # Expose the application port
-EXPOSE 5000
+EXPOSE 7860
 
 # Run the Flask app
 CMD ["python", "app.py"]
