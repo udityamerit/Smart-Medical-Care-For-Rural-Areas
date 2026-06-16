@@ -16,6 +16,7 @@ users.json
 static/emailjs-config.js
 .env
 migrate_passwords.py
+deploy.py
 
 # IDE specific files
 .vscode/
