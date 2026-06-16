@@ -131,8 +131,11 @@ def medicines_showcase_page():
 def login_page():
     if current_user.is_authenticated:
         return redirect(url_for('recommender_page'))
+    
+    active_form = None
     if request.method == 'POST':
         if 'signup_submit' in request.form:
+            active_form = 'signup'
             username = request.form.get('username')
             password = request.form.get('password')
             
@@ -150,6 +153,7 @@ def login_page():
                 return redirect(url_for('recommender_page'))
                 
         elif 'login_submit' in request.form:
+            active_form = 'login'
             username = request.form['username_login']
             password = request.form['password_login']
             user = next((u for u in users.values() if u.username == username), None)
@@ -161,7 +165,7 @@ def login_page():
             else:
                 flash('Invalid username or password.', 'danger')
                 
-    return render_template('login.html')
+    return render_template('login.html', active_form=active_form)
 
 @app.route('/logout')
 @login_required
