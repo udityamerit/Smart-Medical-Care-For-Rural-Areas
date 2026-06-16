@@ -68,6 +68,8 @@ users = load_users()
 
 @login_manager.user_loader
 def load_user(user_id):
+    global users
+    users = load_users()  # Dynamically reload users from disk to support multi-process environments
     return users.get(user_id)
 
 # --- Load Model Components ---
@@ -129,6 +131,9 @@ def medicines_showcase_page():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
+    global users
+    users = load_users()  # Dynamically reload users from disk to support multi-process environments
+    
     if current_user.is_authenticated:
         return redirect(url_for('recommender_page'))
     
