@@ -72,7 +72,7 @@ def load_user(user_id):
 
 # --- Load Model Components ---
 DATAFRAME_FILE = 'processed_data.pkl'
-model, collection, df = load_model_components(DATAFRAME_FILE)
+embeddings, vector_store, df = load_model_components(DATAFRAME_FILE)
 
 
 # --- Haversine Distance Formula ---
@@ -179,7 +179,7 @@ def recommender_page():
 
     user_query = request.args.get('query')
 
-    if df is None or model is None or collection is None:
+    if df is None or embeddings is None or vector_store is None:
         flash('Sorry, the recommendation service is currently unavailable. Please contact the administrator.', 'danger')
         return render_template('index.html', error="Service unavailable.", query=user_query)
 
@@ -188,7 +188,7 @@ def recommender_page():
             flash('Please enter a medicine name or a symptom to search.', 'info')
         return render_template('index.html', recommendation=None, error=None, query=None)
 
-    recommended_medicines = get_recommendations(user_query, df, model, collection)
+    recommended_medicines, ai_explanation = get_recommendations(user_query, df, embeddings, vector_store)
     
     # Manage robust search history to prevent duplicates upon reload
     if not current_user.search_history or current_user.search_history[-1] != user_query:
@@ -203,7 +203,7 @@ def recommender_page():
     # Explicitly pull previous history items (excluding current query)
     previous_searches = [q for q in current_user.search_history if q != user_query]
     if previous_searches:
-        previous_search_recommendations = get_previous_search_recommendations(previous_searches, df, model, collection)
+        previous_search_recommendations = get_previous_search_recommendations(previous_searches, df, embeddings, vector_store)
     
     if not recommended_medicines.empty:
         top_recommendation = recommended_medicines.iloc[0].to_dict()
@@ -216,7 +216,8 @@ def recommender_page():
                                 other_recommendations=other_recommendations, 
                                 previous_search_recommendations=previous_search_recommendations.to_dict('records') if not previous_search_recommendations.empty else [],
                                 previous_searches_list=previous_searches,
-                                query=user_query)
+                                query=user_query,
+                                ai_explanation=ai_explanation)
     
     error_message = f"Sorry, we couldn't find any close matches for '{user_query}'. Please check your spelling or try a different term."
     return render_template('index.html', error=error_message, query=user_query)
@@ -230,12 +231,12 @@ def contextual_recommendations():
         flash('No query provided.', 'warning')
         return redirect(url_for('recommender_page'))
     
-    if df is None or model is None:
+    if df is None or embeddings is None:
          flash('Service unavailable.', 'danger')
          return redirect(url_for('recommender_page'))
          
     # Call the new function for broader/related search
-    contextual_meds_df = get_contextual_recommendations(query, df, model, collection)
+    contextual_meds_df = get_contextual_recommendations(query, df, embeddings, vector_store)
     
     if contextual_meds_df.empty:
         flash(f'No contextual recommendations found for {query}', 'warning')
@@ -386,7 +387,7 @@ def find_pharmacies():
             dist = haversine(user_lat, user_lon, pharmacy['latitude'], pharmacy['longitude'])
             if dist <= radius_km:
                 pharmacies_with_distance.append({
-                    'name': pharmacy.get('Name', 'N/A'),
+                    'name': pharmacy.get('Name').strip() if pharmacy.get('Name') and pharmacy.get('Name').strip() else 'Local Pharmacy',
                     'address': pharmacy.get('Address', ''),
                     'distance_km': dist,
                     'google_map_link': pharmacy.get('Google_Maps_Link', '#'),
@@ -411,58 +412,29 @@ def get_medicine_info():
         return jsonify({"error": "Medicine name is required"}), 400
         
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36'
-        }
-        url = f"https://html.duckduckgo.com/html/?q={medicine_name}+medicine+important+safety+warnings+side+effects"
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_core.output_parsers import StrOutputParser
+
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
         
-        response = requests.get(url, headers=headers, timeout=8)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", (
+                "You are an expert clinical pharmacist. Provide important safety warnings, side effects, "
+                "and precautions for the medicine requested. Follow these constraints:\n"
+                "1. Strictly only discuss safety warnings, side effects, precautions, and warning signs for this specific medicine.\n"
+                "2. Provide 3-5 clear, bulleted points.\n"
+                "3. Highlight key risk terms like 'side effects', 'warnings', 'allergic reactions', 'cautions', 'avoid', 'severe', 'fatal' "
+                "using standard bold tags (`<strong>`).\n"
+                "4. Always include a disclaimer at the end to consult a medical practitioner.\n"
+                "Format the response using clean, simple HTML tags (e.g., <p>, <strong>, <ul>, <li>) so it renders nicely in a modal."
+            )),
+            ("user", "Medicine Name: {medicine_name}")
+        ])
         
-        snippets = soup.find_all('a', class_='result__snippet')
+        chain = prompt | llm | StrOutputParser()
+        info_html = chain.invoke({"medicine_name": medicine_name})
         
-        valid_points = []
-        med_name_lower = medicine_name.lower().strip()
-        med_tokens = med_name_lower.split()
-        primary_name = med_tokens[0] if med_tokens else ""
-        
-        for snippet in snippets:
-            text = snippet.text.strip(' .')
-            text_lower = text.lower()
-            
-            if text and primary_name:
-                # Strictly filter to only include snippets that explicitly mention the medicine 
-                # (to avoid showing warnings for unrelated drugs as requested)
-                if primary_name in text_lower:
-                    # Clean up random DDG ellipses
-                    clean_text = text.replace("...", " ").replace("  ", " ").strip()
-                    if clean_text not in valid_points:
-                        valid_points.append(clean_text)
-                        
-            if len(valid_points) >= 5:
-                break
-                
-        if not valid_points:
-             encoded_med = urllib.parse.quote_plus(f"{medicine_name} medicine use safety warnings side effects")
-             google_url = f"https://www.google.com/search?q={encoded_med}"
-             info_html = f"<div style='margin-bottom: 20px; display: flex; align-items: flex-start;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold;'>•</span><span style='line-height: 1.5; color: #ecf0f1;'>Strict, highly verified safety warnings specific to <strong>{medicine_name}</strong> could not be automatically extracted from our quick search.</span></div>"
-             info_html += f"<div style='text-align: center; margin-top: 25px;'><a href='{google_url}' target='_blank' style='background-color: #3498db; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; transition: background 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'><i class='fab fa-google'></i> Search Google for {medicine_name.capitalize()} Info</a></div>"
-        else:
-             def highlight_keywords(text):
-                 keywords = [r'\bside effects?\b', r'\ballergic reactions?\b', r'\bwarnings?\b', r'\bwarning\b', r'\bcautions?\b', r'\bprecautions?\b', r'\bfatal\b', r'\bsevere\b', r'\binteractions?\b', r'\bdo not take\b', r'\bavoid\b', r'\bsymptoms?\b', r'\bdangerous\b']
-                 for kw in keywords:
-                     text = re.sub(f'({kw})', r"<strong style='color: #2c3e50; background-color: #f39c12; padding: 2px 5px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>\1</strong>", text, flags=re.IGNORECASE)
-                 return text
-                 
-             encoded_med = urllib.parse.quote_plus(f"{medicine_name} medicine use safety warnings side effects")
-             google_url = f"https://www.google.com/search?q={encoded_med}"
-             
-             info_html = f"<div style='word-wrap: break-word; overflow-wrap: break-word;'><strong style='display:block; margin-bottom: 15px; font-size: 1.05em; border-bottom: 1px solid rgba(231, 76, 60, 0.3); padding-bottom: 8px; color: #e74c3c;'><i class='fas fa-exclamation-circle' style='margin-right: 8px;'></i>Key Information & Safety Warnings for {medicine_name.capitalize()}:</strong>"
-             for pt in valid_points:
-                 pt_styled = highlight_keywords(pt)
-                 info_html += f"<div style='margin-bottom: 14px; display: flex; align-items: flex-start;'><span style='margin-right: 10px; color: #e74c3c; font-weight: bold; font-size: 1.2em; line-height: 1;'>•</span><span style='line-height: 1.6; color: #ecf0f1;'>{pt_styled}.</span></div>"
-             info_html += f"<div style='margin-top: 20px; text-align: right; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;'><a href='{google_url}' target='_blank' style='color: #4cd137; text-decoration: none; font-size: 0.95em; font-weight: bold;'><i class='fab fa-google'></i> View more details on Google</a></div></div>"
-             
         return jsonify({"info": info_html})
         
     except Exception as e:

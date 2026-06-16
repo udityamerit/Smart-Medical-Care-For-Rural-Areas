@@ -1,18 +1,25 @@
-import pandas as pd
-from sentence_transformers import SentenceTransformer
-import chromadb
 import os
-import torch
+import time
+import random
+import pandas as pd
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
+
+# Set to None to process all rows, or an integer to process only a subset for testing.
+# We set it to None by default so that the entire 248K dataset is indexed during final training.
+SUBSET_LIMIT = None  
 
 def train_and_save_model(data_filepath, df_path, collection_name="medicines"):
     """
-    Loads data, generates embeddings using Sentence Transformers (on GPU if available), 
-    and stores them in a local ChromaDB collection using batch processing.
+    Loads data, saves the processed DataFrame, and stores embeddings in ChromaDB using HuggingFace model.
     """
-    
-    # --- GPU CHECK ---
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"--- Starting Model Training on {device.upper()} ---")
+    print("--- Starting Model Training using LangChain & HuggingFace (all-MiniLM-L6-v2) ---")
 
     # 1. Load and Preprocess Data
     print("Step 1/3: Loading and preprocessing data...")
@@ -35,58 +42,65 @@ def train_and_save_model(data_filepath, df_path, collection_name="medicines"):
     
     print(f"Data loaded. {len(df)} records found.")
 
-    # 2. Save the processed DataFrame
+    # Apply subset limit for development/testing
+    if SUBSET_LIMIT is not None:
+        print(f"Applying SUBSET_LIMIT of {SUBSET_LIMIT} records for development/testing.")
+        df = df.head(SUBSET_LIMIT).copy()
+        
+    # Save the processed DataFrame (always save to standard path for recommender to load)
     print(f"Step 2/3: Saving processed dataframe to {df_path}...")
     df.to_pickle(df_path)
 
     # 3. Generate Embeddings and Store in ChromaDB
-    print("Step 3/3: Generating embeddings and storing in ChromaDB...")
+    print("Step 3/3: Generating embeddings using HuggingFace and storing in ChromaDB...")
     
-    model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
-    chroma_client = chromadb.PersistentClient(path="chroma_db")
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     
-    # Reset Collection
-    try:
-        chroma_client.delete_collection(name=collection_name)
-        print(f"Deleted existing collection '{collection_name}'.")
-    except Exception:
-        pass # Collection didn't exist
-        
-    collection = chroma_client.create_collection(name=collection_name)
+    # Initialize Chroma Vector Store.
+    persist_dir = "chroma_db"
 
-    # Prepare data lists
-    documents = df['soup'].tolist()
-    ids = df['id'].tolist()
-    metadatas = df[['name', 'reason']].fillna("").to_dict('records')
-    
-    # Generate embeddings (Batch size 64 for GPU memory safety)
-    print(f"Computing embeddings on {device}...")
-    embeddings = model.encode(documents, batch_size=64, show_progress_bar=True).tolist()
-    
-    # --- NEW: Insert into ChromaDB in small batches to avoid InternalError ---
-    BATCH_SIZE = 5000
+    if os.path.exists(persist_dir):
+        print(f"Clearing existing database at '{persist_dir}'...")
+        import shutil
+        try:
+            shutil.rmtree(persist_dir)
+        except Exception as e:
+            print(f"Warning: Could not clear '{persist_dir}': {e}")
+            
+    vector_store = Chroma(
+        collection_name=collection_name,
+        embedding_function=embeddings,
+        persist_directory=persist_dir
+    )
+
+    # Prepare document objects
+    print("Preparing document representations...")
+    documents = []
+    for idx, row in df.iterrows():
+        doc_text = row['soup']
+        metadata = {
+            'name': str(row['name']) if pd.notnull(row['name']) else '',
+            'reason': str(row['reason']) if pd.notnull(row['reason']) else '',
+            'db_id': str(row['id'])
+        }
+        documents.append(Document(page_content=doc_text, metadata=metadata, id=str(row['id'])))
+
+    # Insert into ChromaDB in batches
+    BATCH_SIZE = 1000  # Local inference is fast, can use larger batch size
     total_docs = len(documents)
     
     print(f"Inserting {total_docs} records into ChromaDB in batches of {BATCH_SIZE}...")
     
     for i in range(0, total_docs, BATCH_SIZE):
         end_idx = min(i + BATCH_SIZE, total_docs)
-        
         batch_docs = documents[i:end_idx]
-        batch_embeddings = embeddings[i:end_idx]
-        batch_metadatas = metadatas[i:end_idx]
-        batch_ids = ids[i:end_idx]
         
-        collection.add(
-            documents=batch_docs,
-            embeddings=batch_embeddings,
-            metadatas=batch_metadatas,
-            ids=batch_ids
-        )
-        print(f"  -> Added records {i} to {end_idx}")
+        print(f"Processing batch {i} to {end_idx}... ", end="", flush=True)
+        vector_store.add_documents(documents=batch_docs)
+        print("Success.")
 
     print("\n--- Training Complete! ---")
-    print(f"Embeddings stored in 'chroma_db' folder. Collection: {collection_name}")
+    print(f"Embeddings stored in '{persist_dir}' folder. Collection: {collection_name}")
     print("You can now run 'app.py'.")
 
 if __name__ == '__main__':

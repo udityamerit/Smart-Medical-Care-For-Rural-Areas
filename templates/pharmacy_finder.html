@@ -446,7 +446,7 @@
         // 2. Initialize Map with "Dark Mode" as default
         map = L.map('map', {
             zoomControl: false,
-            layers: [streetLayer]
+            layers: [darkLayer]
         }).setView([20.59, 78.96], 5);
 
         // 3. Add Layer Control (Top Right)
@@ -588,6 +588,7 @@
 
     function recenterMap() {
         if (map && userLocation) {
+            map.invalidateSize();
             map.setView([userLocation.lat, userLocation.lon], 13);
         }
     }
@@ -719,7 +720,7 @@
 
         if (pharmacies.length > 0) {
             const group = new L.featureGroup([...pharmacyMarkerLayer.getLayers(), ...userMarkerLayer.getLayers()]);
-            map.fitBounds(group.getBounds().pad(0.15));
+            map.fitBounds(group.getBounds().pad(0.15), { maxZoom: 15 });
         }
     }
 

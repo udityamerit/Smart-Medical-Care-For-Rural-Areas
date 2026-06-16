@@ -1,24 +1,35 @@
 import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import logging
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
-
 import pandas as pd
 import numpy as np
-from sentence_transformers import SentenceTransformer
-import chromadb
-from sklearn.metrics.pairwise import cosine_similarity
-import os
-import torch
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+api_key = os.getenv("GEMINI_API_KEY")
+if api_key:
+    os.environ["GOOGLE_API_KEY"] = api_key
+
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.vectorstores import Chroma
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+def cosine_similarity_1d(a, b):
+    a = np.array(a)
+    b = np.array(b)
+    dot = np.dot(a, b)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 def load_model_components(df_path, collection_name="medicines"):
     """
-    Loads the DataFrame and connects to the existing ChromaDB.
+    Loads the DataFrame and connects to the ChromaDB using LangChain.
     """
-    # --- GPU CHECK ---
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"--- Initializing Recommender (ChromaDB + MMR) on {device.upper()} ---")
+    print("--- Initializing Recommender (ChromaDB + LangChain + HuggingFace) ---")
     
     if not os.path.exists(df_path):
         print(f"\nFATAL ERROR: {df_path} not found. Run train_model.py first.")
@@ -31,110 +42,109 @@ def load_model_components(df_path, collection_name="medicines"):
     try:
         df = pd.read_pickle(df_path)
         
-        # --- GPU MODIFICATION: Load model on GPU ---
-        model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+        # Load HuggingFace Embeddings
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         
-        chroma_client = chromadb.PersistentClient(path="chroma_db")
-        collection = chroma_client.get_collection(name=collection_name)
+        # Connect to ChromaDB
+        vector_store = Chroma(
+            collection_name=collection_name,
+            embedding_function=embeddings,
+            persist_directory="chroma_db"
+        )
         
         print("Recommender initialized successfully.")
-        return model, collection, df
+        return embeddings, vector_store, df
         
     except Exception as e:
         print(f"\nERROR loading components: {e}")
         return None, None, None
 
-def mmr_sort(query_embedding, candidate_embeddings, candidate_ids, k=10, lambda_param=0.5):
+def generate_ai_explanation(query, recommended_meds):
     """
-    Maximal Marginal Relevance (MMR) algorithm.
-    """
-    if not candidate_ids:
-        return []
-
-    query_embedding = np.array(query_embedding).reshape(1, -1)
-    candidate_embeddings = np.array(candidate_embeddings)
-    
-    sim_to_query = cosine_similarity(query_embedding, candidate_embeddings)[0]
-    
-    selected_indices = []
-    candidate_indices = list(range(len(candidate_ids)))
-    
-    while len(selected_indices) < k and candidate_indices:
-        best_score = -float('inf')
-        best_idx = -1
-        
-        for idx in candidate_indices:
-            relevance = sim_to_query[idx]
-            
-            if not selected_indices:
-                redundancy = 0
-            else:
-                selected_embeddings = candidate_embeddings[selected_indices]
-                current_embedding = candidate_embeddings[idx].reshape(1, -1)
-                redundancy = np.max(cosine_similarity(current_embedding, selected_embeddings))
-            
-            score = lambda_param * relevance - (1 - lambda_param) * redundancy
-            
-            if score > best_score:
-                best_score = score
-                best_idx = idx
-        
-        if best_idx != -1:
-            selected_indices.append(best_idx)
-            candidate_indices.remove(best_idx)
-            
-    return [(candidate_ids[i], sim_to_query[i]) for i in selected_indices]
-
-def get_recommendations(query, df, model, collection):
-    """
-    Gets medicine recommendations using Sentence Transformer embeddings 
-    stored in ChromaDB, ranked via MMR.
+    Generates a structured medical overview explaining the recommendations using Gemini 1.5 Flash.
     """
     try:
-        # 1. Embed the user query
-        query_vec = model.encode([query]).tolist()
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
         
-        # 2. Query ChromaDB
-        results = collection.query(
-            query_embeddings=query_vec,
-            n_results=20,
-            include=['embeddings', 'documents', 'metadatas'] 
-        )
+        # Format candidate medicines for the prompt
+        meds_context = ""
+        for i, med in enumerate(recommended_meds):
+            meds_context += f"{i+1}. Name: {med['name']}\n   Indications: {med['reason']}\n   Description: {med['description']}\n   Age Group: {med['age_group']}\n\n"
+            
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", (
+                "You are an expert AI Clinical Pharmacist. Your task is to analyze the user's health query or medicine search "
+                "and explain the recommended medicines. Follow these guidelines:\n"
+                "1. Keep your tone empathetic, professional, and clear.\n"
+                "2. Provide a brief overview of what the query indicates (e.g. identify if it is a symptom like 'fever' or a drug like 'paracetamol').\n"
+                "3. Review the provided candidate medicines and explain which ones are the best matches for the symptoms/query and why.\n"
+                "4. List key safety warnings, precautions, and when to seek immediate medical attention.\n"
+                "5. Always include a prominent standard medical disclaimer at the very end of your response inside a container styled for a dark themed dashboard. Use exactly this HTML markup:\n"
+                "   <div class='medical-disclaimer' style='margin-top: 20px; padding: 15px; border: 1px solid rgba(243, 156, 18, 0.45); background-color: rgba(243, 156, 18, 0.08); color: #fbe5c8; border-radius: 8px; font-weight: 500;'>\n"
+                "       <strong>Disclaimer:</strong> This is an AI-generated analysis. Consult a qualified medical practitioner before taking any medication.\n"
+                "   </div>\n"
+                "Format the rest of the response using clean, semantic HTML tags (e.g., <p>, <strong>, <ul>, <li>) suitable for rendering directly in a web dashboard."
+            )),
+            ("user", "User Search Query: {query}\n\nCandidate Medicines:\n{meds_context}")
+        ])
         
-        # Safety check: Ensure results are not None or empty
-        if results is None:
-            return pd.DataFrame()
+        chain = prompt | llm | StrOutputParser()
+        response = chain.invoke({"query": query, "meds_context": meds_context})
+        return response
+    except Exception as e:
+        print(f"Error generating AI explanation: {e}")
+        return "<p>AI doctor analysis is currently unavailable. Please consult your physician.</p>"
 
-        if not results.get('ids') or not results['ids'][0]:
-            return pd.DataFrame()
+def get_recommendations(query, df, embeddings, vector_store):
+    """
+    Gets medicine recommendations using LangChain Chroma vector store, ranked via MMR.
+    Returns a tuple: (matched_df, ai_explanation)
+    """
+    try:
+        # 1. MMR search on Chroma
+        # We fetch 20 candidates and return top 10 diverse matches
+        docs = vector_store.max_marginal_relevance_search(query, k=10, fetch_k=20, lambda_mult=0.5)
+        
+        if not docs:
+            return pd.DataFrame(), None
 
-        candidate_ids = results['ids'][0]
-        candidate_embeddings = results['embeddings'][0]
+        # 2. Extract database IDs
+        db_ids = [int(doc.metadata['db_id']) for doc in docs if 'db_id' in doc.metadata]
+        if not db_ids:
+            return pd.DataFrame(), None
+
+        matched_df = df.loc[db_ids].copy()
+
+        # 3. Compute exact Cosine Similarity for Match Scores
+        query_emb = embeddings.embed_query(query)
+        doc_texts = [doc.page_content for doc in docs]
+        doc_embs = embeddings.embed_documents(doc_texts)
         
-        # 3. Apply MMR
-        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.5)
-        
-        # Convert IDs back to integers for DataFrame lookup
-        final_indices = [int(uid) for uid, score in final_results]
-        scores = [score for uid, score in final_results]
-        
-        matched_df = df.loc[final_indices].copy()
-        
-        # Scale scores to map the best match up to 95-99%
-        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scores = []
+        for doc_emb in doc_embs:
+            score = cosine_similarity_1d(query_emb, doc_emb)
+            scores.append(score)
+
+        # 4. Scale scores (85% to 99.6%)
+        max_score = max(scores) if scores else 1.0
         scaled_scores = []
         for s in scores:
             relative = max(0.0, float(s)) / max(0.001, max_score)
             boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
             scaled_scores.append(round(min(99.6, boosted)))
-            
+
         matched_df['Match_Score'] = scaled_scores
         matched_df = matched_df[matched_df['Match_Score'] >= 95]
-        return matched_df
+        
+        # 5. Generate AI Explanation for the matched medicines
+        recommended_meds = matched_df.head(5).to_dict('records')
+        ai_explanation = generate_ai_explanation(query, recommended_meds) if recommended_meds else None
+
+        return matched_df, ai_explanation
 
     except Exception as e:
         print(f"Error during recommendation: {e}")
-        return pd.DataFrame()
+        return pd.DataFrame(), None
 
 def get_substitutes(medicine_name, df):
     """
@@ -143,47 +153,41 @@ def get_substitutes(medicine_name, df):
     substitutes = df[df['name'] == medicine_name][['substitute0', 'substitute1', 'substitute2', 'substitute3', 'substitute4']]
     return substitutes.values.flatten().tolist()
 
-# --- NEW FUNCTIONALITY: Contextual Recommendations ---
-def get_contextual_recommendations(query, df, model, collection):
+def get_contextual_recommendations(query, df, embeddings, vector_store):
     """
     Finds medicines for 'associated conditions' or 'causes' related to the query.
-    Uses a broader search query and higher diversity (lower lambda) in MMR.
+    Uses a broader search query and higher diversity (lower lambda_mult) in MMR.
     """
     try:
-        # Lightly augment query to find deeper associations
         advanced_query = query + " treatments conditions"
+        docs = vector_store.max_marginal_relevance_search(advanced_query, k=15, fetch_k=40, lambda_mult=0.6)
         
-        query_vec = model.encode([advanced_query]).tolist()
-        
-        # Fetch more results to explore the 'tail' of the distribution
-        results = collection.query(
-            query_embeddings=query_vec,
-            n_results=50, 
-            include=['embeddings', 'documents', 'metadatas'] 
-        )
-        
-        if not results.get('ids') or not results['ids'][0]:
+        if not docs:
             return pd.DataFrame()
 
-        candidate_ids = results['ids'][0]
-        candidate_embeddings = results['embeddings'][0]
+        db_ids = [int(doc.metadata['db_id']) for doc in docs if 'db_id' in doc.metadata]
+        if not db_ids:
+            return pd.DataFrame()
+
+        matched_df = df.loc[db_ids].copy()
+
+        # Compute scores
+        query_emb = embeddings.embed_query(advanced_query)
+        doc_texts = [doc.page_content for doc in docs]
+        doc_embs = embeddings.embed_documents(doc_texts)
         
-        # Adjust lambda_param (0.6) to ensure relevance while allowing some diversity
-        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=15, lambda_param=0.6)
-        
-        final_indices = [int(uid) for uid, score in final_results]
-        scores = [score for uid, score in final_results]
-        
-        matched_df = df.loc[final_indices].copy()
-        
-        # Scale scores to map the best match up to 95-99%
-        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scores = []
+        for doc_emb in doc_embs:
+            score = cosine_similarity_1d(query_emb, doc_emb)
+            scores.append(score)
+
+        max_score = max(scores) if scores else 1.0
         scaled_scores = []
         for s in scores:
             relative = max(0.0, float(s)) / max(0.001, max_score)
             boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
             scaled_scores.append(round(min(99.6, boosted)))
-            
+
         matched_df['Match_Score'] = scaled_scores
         matched_df = matched_df[matched_df['Match_Score'] >= 95]
         return matched_df
@@ -192,55 +196,40 @@ def get_contextual_recommendations(query, df, model, collection):
         print(f"Error getting contextual recommendations: {e}")
         return pd.DataFrame()
 
-if __name__ == '__main__':
-    # Test block
-    DATAFRAME_FILE = 'processed_data.pkl'
-    model, collection, df = load_model_components(DATAFRAME_FILE)
-    if df is not None:
-        print("Testing Contextual Search for 'Fever'...")
-        recs = get_contextual_recommendations("Fever", df, model, collection)
-        print(recs[['name', 'reason']].head(5))
-
-# --- NEW FUNCTIONALITY: Root Cause / Diverse Types Match ---
-def get_root_cause_match(query, df, model, collection):
+def get_root_cause_match(query, df, embeddings, vector_store):
     """
-    Finds diverse types of a condition (e.g. 'pain' -> stomach pain, body pain, chest pain)
-    or root causes.
+    Finds diverse types of a condition or root causes.
     """
     try:
-        # Lightly augment query to find diverse types and root causes without diluting typos
         advanced_query = query + " causes conditions"
+        docs = vector_store.max_marginal_relevance_search(advanced_query, k=10, fetch_k=30, lambda_mult=0.7)
         
-        query_vec = model.encode([advanced_query]).tolist()
-        
-        results = collection.query(
-            query_embeddings=query_vec,
-            n_results=50, 
-            include=['embeddings', 'documents', 'metadatas'] 
-        )
-        
-        if not results.get('ids') or not results['ids'][0]:
+        if not docs:
             return pd.DataFrame()
 
-        candidate_ids = results['ids'][0]
-        candidate_embeddings = results['embeddings'][0]
+        db_ids = [int(doc.metadata['db_id']) for doc in docs if 'db_id' in doc.metadata]
+        if not db_ids:
+            return pd.DataFrame()
+
+        matched_df = df.loc[db_ids].copy()
+
+        # Compute scores
+        query_emb = embeddings.embed_query(advanced_query)
+        doc_texts = [doc.page_content for doc in docs]
+        doc_embs = embeddings.embed_documents(doc_texts)
         
-        # Use higher lambda_param (0.7) to heavily enforce relevance and prevent wild drift
-        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.7)
-        
-        final_indices = [int(uid) for uid, score in final_results]
-        scores = [score for uid, score in final_results]
-        
-        matched_df = df.loc[final_indices].copy()
-        
-        # Scale scores to map the best match up to 95-99%
-        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scores = []
+        for doc_emb in doc_embs:
+            score = cosine_similarity_1d(query_emb, doc_emb)
+            scores.append(score)
+
+        max_score = max(scores) if scores else 1.0
         scaled_scores = []
         for s in scores:
             relative = max(0.0, float(s)) / max(0.001, max_score)
             boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
             scaled_scores.append(round(min(99.6, boosted)))
-            
+
         matched_df['Match_Score'] = scaled_scores
         matched_df = matched_df[matched_df['Match_Score'] >= 95]
         return matched_df
@@ -248,8 +237,7 @@ def get_root_cause_match(query, df, model, collection):
         print(f"Error getting root cause matches: {e}")
         return pd.DataFrame()
 
-# --- NEW FUNCTIONALITY: Previous Search Recommendations ---
-def get_previous_search_recommendations(search_history, df, model, collection):
+def get_previous_search_recommendations(search_history, df, embeddings, vector_store):
     """
     Provides recommendations based on the user's past search queries.
     """
@@ -257,39 +245,35 @@ def get_previous_search_recommendations(search_history, df, model, collection):
         return pd.DataFrame()
         
     try:
-        # Combine previous searches into a single query context
         combined_query = " ".join(search_history)
+        docs = vector_store.max_marginal_relevance_search(combined_query, k=10, fetch_k=30, lambda_mult=0.5)
         
-        query_vec = model.encode([combined_query]).tolist()
-        
-        results = collection.query(
-            query_embeddings=query_vec,
-            n_results=30, 
-            include=['embeddings', 'documents', 'metadatas'] 
-        )
-        
-        if not results.get('ids') or not results['ids'][0]:
+        if not docs:
             return pd.DataFrame()
 
-        candidate_ids = results['ids'][0]
-        candidate_embeddings = results['embeddings'][0]
+        db_ids = [int(doc.metadata['db_id']) for doc in docs if 'db_id' in doc.metadata]
+        if not db_ids:
+            return pd.DataFrame()
+
+        matched_df = df.loc[db_ids].copy()
+
+        # Compute scores
+        query_emb = embeddings.embed_query(combined_query)
+        doc_texts = [doc.page_content for doc in docs]
+        doc_embs = embeddings.embed_documents(doc_texts)
         
-        # Standard MMR for general recommendations
-        final_results = mmr_sort(query_vec[0], candidate_embeddings, candidate_ids, k=10, lambda_param=0.5)
-        
-        final_indices = [int(uid) for uid, score in final_results]
-        scores = [score for uid, score in final_results]
-        
-        matched_df = df.loc[final_indices].copy()
-        
-        # Scale scores to map the best match up to 95-99%
-        max_score = max([float(s) for s in scores]) if scores else 1.0
+        scores = []
+        for doc_emb in doc_embs:
+            score = cosine_similarity_1d(query_emb, doc_emb)
+            scores.append(score)
+
+        max_score = max(scores) if scores else 1.0
         scaled_scores = []
         for s in scores:
             relative = max(0.0, float(s)) / max(0.001, max_score)
             boosted = 85.0 + (relative * 13.0) + (min(1.0, float(s)) * 1.5)
             scaled_scores.append(round(min(99.6, boosted)))
-            
+
         matched_df['Match_Score'] = scaled_scores
         matched_df = matched_df[matched_df['Match_Score'] >= 95]
         return matched_df
