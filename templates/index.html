@@ -96,6 +96,31 @@
     .medical-disclaimer span {
         color: #fbe5c8 !important;
     }
+
+    /* Search Loading Animation Keyframes */
+    @keyframes pulseOuter {
+        0% { transform: scale(0.95); opacity: 0.3; }
+        50% { transform: scale(1.08); opacity: 0.75; }
+        100% { transform: scale(0.95); opacity: 0.3; }
+    }
+    @keyframes pulseInner {
+        0% { transform: scale(0.9); opacity: 0.4; }
+        50% { transform: scale(1.04); opacity: 0.85; }
+        100% { transform: scale(0.9); opacity: 0.4; }
+    }
+    @keyframes dotBounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+    }
+    .ecg-pulse-loading {
+        stroke-dasharray: 200;
+        stroke-dashoffset: 200;
+        animation: drawPulse 2s linear infinite;
+    }
+    @keyframes drawPulse {
+        0% { stroke-dashoffset: 200; }
+        100% { stroke-dashoffset: 0; }
+    }
 </style>
 
 <div id="listening-modal" class="modal-overlay">
@@ -120,6 +145,35 @@
         </div>
     </div>
 </div>
+
+<div id="search-loading-overlay" class="modal-overlay" style="z-index: 3000; background: rgba(10, 25, 47, 0.95); display: none; align-items: center; justify-content: center;">
+    <div style="text-align: center; color: #fff; max-width: 450px; padding: 40px 30px; border-radius: 20px; background: rgba(23, 49, 85, 0.65); border: 1px solid rgba(0, 170, 255, 0.3); backdrop-filter: blur(15px); box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+        <!-- Professional Medical Pulse Logo -->
+        <div style="width: 130px; height: 130px; margin-bottom: 15px; position: relative; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 2.5px solid rgba(0, 170, 255, 0.4); animation: pulseOuter 2.2s infinite ease-in-out;"></div>
+            <div style="position: absolute; width: 80%; height: 80%; border-radius: 50%; border: 2.5px solid rgba(100, 255, 218, 0.3); animation: pulseInner 2.2s infinite ease-in-out; animation-delay: 0.5s;"></div>
+            
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 75px; height: 75px; z-index: 2; filter: drop-shadow(0 0 10px rgba(0, 170, 255, 0.65));">
+                <path d="M50 85 C30 70 15 55 15 35 C15 20 25 15 35 15 C42 15 47 20 50 25 C53 20 58 15 65 15 C75 15 85 20 85 35 C85 55 70 70 50 85Z" 
+                      stroke="rgba(0, 170, 255, 0.85)" stroke-width="4.5" fill="none"/>
+                <path class="ecg-pulse-loading" d="M15 40 H30 L35 30 L42 60 L50 20 L58 75 L65 40 H85" 
+                      stroke="#64ffda" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <circle cx="50" cy="85" r="5.5" fill="#64ffda"/>
+            </svg>
+        </div>
+        
+        <h3 style="color: #64ffda; font-size: 1.55rem; margin: 5px 0 10px; font-weight: 600; letter-spacing: 0.5px;">AI Doctor Searching...</h3>
+        <p style="color: #8892b0; font-size: 0.98rem; line-height: 1.5; margin: 0 0 15px; font-weight: normal;">Consulting database & preparing clinical precautions.</p>
+        
+        <!-- Animated dots indicator -->
+        <div style="display: flex; gap: 8px; justify-content: center;">
+            <div class="dot-bounce" style="width: 10px; height: 10px; border-radius: 50%; background: #00aaff; animation: dotBounce 1.4s infinite ease-in-out; animation-delay: -0.32s;"></div>
+            <div class="dot-bounce" style="width: 10px; height: 10px; border-radius: 50%; background: #64ffda; animation: dotBounce 1.4s infinite ease-in-out; animation-delay: -0.16s;"></div>
+            <div class="dot-bounce" style="width: 10px; height: 10px; border-radius: 50%; background: #00aaff; animation: dotBounce 1.4s infinite ease-in-out;"></div>
+        </div>
+    </div>
+</div>
+
 <style>
     .hero {
         padding: 60px 20px;
@@ -324,6 +378,15 @@
         const micIcon = micBtn.querySelector('i');
         const listeningModal = document.getElementById('listening-modal');
 
+        searchForm?.addEventListener('submit', function () {
+            const overlay = document.getElementById('search-loading-overlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+                overlay.style.opacity = '1';
+                overlay.style.visibility = 'visible';
+            }
+        });
+
         if ('webkitSpeechRecognition' in window) {
             const recognition = new webkitSpeechRecognition();
             let isListening = false;
@@ -369,6 +432,12 @@
                 if (final_transcript) {
                     searchInput.value = final_transcript;
                     recognition.stop();
+                    const overlay = document.getElementById('search-loading-overlay');
+                    if (overlay) {
+                        overlay.style.display = 'flex';
+                        overlay.style.opacity = '1';
+                        overlay.style.visibility = 'visible';
+                    }
                     setTimeout(() => searchForm.submit(), 300);
                 }
             };
