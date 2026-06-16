@@ -7,6 +7,7 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 import csv
 import math
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from recommender import load_model_components, get_recommendations, get_substitutes, get_contextual_recommendations, get_root_cause_match, get_previous_search_recommendations
@@ -80,11 +81,15 @@ def sync_users_to_space():
 sync_users_from_space()
 
 class User(UserMixin):
-    def __init__(self, id, username, password, search_history=None):
+    def __init__(self, id, username, password_hash, search_history=None):
         self.id = id
         self.username = username
-        self.password = password
+        self.password_hash = password_hash  # Always store the hashed password, never plain-text
         self.search_history = search_history if search_history is not None else []
+
+def _is_plain_text_password(value: str) -> bool:
+    """Detect if a stored value is a plain-text password (not a werkzeug hash)."""
+    return not value.startswith(('pbkdf2:', 'scrypt:', 'bcrypt:', '$2b$'))
 
 def load_users():
     if not os.path.exists(USERS_FILE):
@@ -92,7 +97,25 @@ def load_users():
     try:
         with open(USERS_FILE, 'r') as f:
             users_data = json.load(f)
-            return {id: User(id, data['username'], data['password'], data.get('search_history', [])) for id, data in users_data.items()}
+        
+        users_dict = {}
+        migrated = False
+        for uid, data in users_data.items():
+            stored = data.get('password', '')
+            # Migrate legacy plain-text passwords to hashes on first load
+            if _is_plain_text_password(stored):
+                stored = generate_password_hash(stored)
+                users_data[uid]['password'] = stored
+                migrated = True
+            users_dict[uid] = User(uid, data['username'], stored, data.get('search_history', []))
+        
+        # Persist migrated hashes back to disk immediately
+        if migrated:
+            with open(USERS_FILE, 'w') as f:
+                json.dump(users_data, f, indent=4)
+            print("Migrated plain-text passwords to hashed passwords in users.json.")
+        
+        return users_dict
     except json.JSONDecodeError:
         print("Error: users.json is corrupted or empty. Creating a new one.")
         return {}
@@ -103,7 +126,15 @@ def load_users():
 
 def save_users(users_dict):
     try:
-        users_data = {id: {'username': user.username, 'password': user.password, 'search_history': user.search_history} for id, user in users_dict.items()}
+        # Always save the password_hash field — never a plain-text password
+        users_data = {
+            uid: {
+                'username': user.username,
+                'password': user.password_hash,
+                'search_history': user.search_history
+            }
+            for uid, user in users_dict.items()
+        }
         with open(USERS_FILE, 'w') as f:
             json.dump(users_data, f, indent=4)
         sync_users_to_space()
@@ -196,7 +227,9 @@ def login_page():
                 flash('Username already exists. Please choose another.', 'danger')
             else:
                 new_id = str(len(users) + 1)
-                new_user = User(new_id, username, password)
+                # Hash the password before storing — plain-text passwords are never persisted
+                hashed_pw = generate_password_hash(password)
+                new_user = User(new_id, username, hashed_pw)
                 users[new_id] = new_user
                 save_users(users)
                 login_user(new_user)
@@ -209,7 +242,8 @@ def login_page():
             password = request.form['password_login']
             user = next((u for u in users.values() if u.username == username), None)
             
-            if user and user.password == password:
+            # Use constant-time hash comparison — never compare plain-text passwords
+            if user and check_password_hash(user.password_hash, password):
                 login_user(user)
                 flash('Logged in successfully.', 'success')
                 return redirect(url_for('recommender_page'))
@@ -224,6 +258,57 @@ def logout():
     logout_user()
     flash('You have been logged out.', 'success')
     return redirect(url_for('home'))
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile_page():
+    """
+    Serves only the currently logged-in user's own data.
+    Uses current_user exclusively — never loads or exposes any other user's data.
+    """
+    global users
+    users = load_users()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'change_password':
+            current_password = request.form.get('current_password', '')
+            new_password = request.form.get('new_password', '')
+            confirm_password = request.form.get('confirm_password', '')
+
+            # Verify old password against THIS user's hash only
+            me = users.get(current_user.id)
+            if not me:
+                flash('Session error. Please log in again.', 'danger')
+                return redirect(url_for('login_page'))
+
+            if not check_password_hash(me.password_hash, current_password):
+                flash('Current password is incorrect.', 'danger')
+            elif len(new_password) < 4:
+                flash('New password must be at least 4 characters.', 'danger')
+            elif new_password != confirm_password:
+                flash('New passwords do not match.', 'danger')
+            else:
+                # Update ONLY this user's hash
+                users[current_user.id].password_hash = generate_password_hash(new_password)
+                save_users(users)
+                flash('Password changed successfully!', 'success')
+
+        elif action == 'clear_history':
+            me = users.get(current_user.id)
+            if me:
+                users[current_user.id].search_history = []
+                save_users(users)
+                flash('Search history cleared.', 'success')
+
+        return redirect(url_for('profile_page'))
+
+    # Pass ONLY current_user's data to the template — no other user data ever sent
+    me = users.get(current_user.id)
+    return render_template('profile.html',
+                           username=me.username if me else current_user.username,
+                           search_history=me.search_history if me else [])
 
 @app.route('/recommender', methods=['GET', 'POST'])
 @login_required

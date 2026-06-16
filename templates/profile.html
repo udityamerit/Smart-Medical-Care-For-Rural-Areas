@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}My Profile{% endblock %}
+
+{% block styles %}
+<style>
+    /* ========= PAGE LAYOUT ========= */
+    .profile-page {
+        min-height: 85vh;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 50px 20px 80px;
+    }
+
+    .profile-container {
+        width: 100%;
+        max-width: 680px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+    }
+
+    /* ========= AVATAR CARD ========= */
+    .profile-hero {
+        background: linear-gradient(135deg, rgba(0, 170, 255, 0.12), rgba(100, 255, 218, 0.06));
+        border: 1px solid rgba(0, 170, 255, 0.25);
+        border-radius: 20px;
+        padding: 36px 32px;
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .profile-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(0,170,255,0.08) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+
+    .avatar-circle {
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #00aaff, #64ffda);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #0a1628;
+        text-transform: uppercase;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 4px rgba(0, 170, 255, 0.2), 0 8px 24px rgba(0, 170, 255, 0.35);
+        letter-spacing: 1px;
+    }
+
+    .profile-info h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #e2f4ff;
+        margin: 0 0 6px;
+    }
+
+    .profile-info .role-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(0, 170, 255, 0.15);
+        color: #00cefc;
+        border: 1px solid rgba(0, 170, 255, 0.3);
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .privacy-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(26, 255, 0, 0.08);
+        color: #1aff00;
+        border: 1px solid rgba(26, 255, 0, 0.2);
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        margin-top: 8px;
+    }
+
+    /* ========= SECTION CARDS ========= */
+    .section-card {
+        background: rgba(15, 30, 50, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(8px);
+    }
+
+    .section-card h2 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #a0c4d8;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        margin: 0 0 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .section-card h2 i {
+        color: #00aaff;
+        font-size: 1rem;
+    }
+
+    /* ========= SEARCH HISTORY ========= */
+    .history-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .history-list li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(0, 170, 255, 0.06);
+        border: 1px solid rgba(0, 170, 255, 0.15);
+        border-radius: 10px;
+        padding: 12px 16px;
+        color: #c8e6f5;
+        font-size: 0.95rem;
+        transition: background 0.2s ease;
+    }
+
+    .history-list li:hover {
+        background: rgba(0, 170, 255, 0.12);
+    }
+
+    .history-list li i {
+        color: #00aaff;
+        font-size: 0.85rem;
+        flex-shrink: 0;
+    }
+
+    .no-history {
+        color: #4a6278;
+        font-size: 0.95rem;
+        text-align: center;
+        padding: 20px 0;
+        font-style: italic;
+    }
+
+    .btn-clear-history {
+        margin-top: 16px;
+        background: rgba(231, 76, 60, 0.1);
+        color: #e74c3c;
+        border: 1px solid rgba(231, 76, 60, 0.3);
+        padding: 9px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.88rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .btn-clear-history:hover {
+        background: rgba(231, 76, 60, 0.22);
+        border-color: rgba(231, 76, 60, 0.5);
+    }
+
+    /* ========= PASSWORD FORM ========= */
+    .pw-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .pw-form label {
+        font-size: 0.85rem;
+        color: #7fa8c0;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        margin-bottom: 6px;
+        display: block;
+    }
+
+    .pw-input-wrap {
+        position: relative;
+    }
+
+    .pw-form input[type="password"],
+    .pw-form input[type="text"] {
+        width: 100%;
+        padding: 12px 46px 12px 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        color: #e2f4ff;
+        font-size: 0.95rem;
+        font-family: 'Poppins', sans-serif;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        box-sizing: border-box;
+    }
+
+    .pw-form input:focus {
+        outline: none;
+        border-color: rgba(0, 170, 255, 0.5);
+        box-shadow: 0 0 0 3px rgba(0, 170, 255, 0.1);
+    }
+
+    .pw-toggle {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #4a6278;
+        cursor: pointer;
+        padding: 0;
+        font-size: 0.85rem;
+        transition: color 0.2s;
+    }
+
+    .pw-toggle:hover { color: #00aaff; }
+
+    .btn-save-pw {
+        background: linear-gradient(135deg, #00aaff, #0080cc);
+        color: white;
+        border: none;
+        padding: 13px 28px;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 16px rgba(0, 170, 255, 0.25);
+        margin-top: 4px;
+        align-self: flex-start;
+    }
+
+    .btn-save-pw:hover {
+        background: linear-gradient(135deg, #00cefc, #00aaff);
+        box-shadow: 0 6px 20px rgba(0, 170, 255, 0.4);
+        transform: translateY(-1px);
+    }
+
+    /* ========= ISOLATION NOTICE ========= */
+    .isolation-notice {
+        background: rgba(26, 255, 0, 0.05);
+        border: 1px solid rgba(26, 255, 0, 0.2);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        font-size: 0.88rem;
+        color: #a8d5b5;
+        line-height: 1.5;
+    }
+
+    .isolation-notice i {
+        color: #1aff00;
+        font-size: 1rem;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+
+    @media (max-width: 600px) {
+        .profile-hero {
+            flex-direction: column;
+            text-align: center;
+            padding: 28px 20px;
+        }
+        .profile-hero::before { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <div class="profile-container">
+
+        <!-- ===== AVATAR / HERO ===== -->
+        <div class="profile-hero" data-aos="fade-up">
+            <div class="avatar-circle">
+                {{ username[:2] if username|length >= 2 else username }}
+            </div>
+            <div class="profile-info">
+                <h1>{{ username }}</h1>
+                <div class="role-badge">
+                    <i class="fas fa-user-circle"></i> Registered Member
+                </div>
+                <div class="privacy-badge">
+                    <i class="fas fa-lock"></i> Your data is private &amp; isolated
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== ISOLATION NOTICE ===== -->
+        <div class="isolation-notice" data-aos="fade-up" data-aos-delay="50">
+            <i class="fas fa-shield-alt"></i>
+            <span>
+                <strong>Privacy Guarantee:</strong> This page shows <em>only your own</em> information.
+                No other user can see your username, password, or search history — and you cannot see theirs.
+                Passwords are stored as one-way cryptographic hashes and are never readable by anyone.
+            </span>
+        </div>
+
+        <!-- ===== MY SEARCH HISTORY ===== -->
+        <div class="section-card" data-aos="fade-up" data-aos-delay="100">
+            <h2><i class="fas fa-history"></i> My Search History</h2>
+
+            {% if search_history %}
+                <ul class="history-list">
+                    {% for item in search_history %}
+                    <li>
+                        <i class="fas fa-search"></i>
+                        {{ item }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                <form method="POST" action="{{ url_for('profile_page') }}" id="clear-history-form">
+                    <input type="hidden" name="action" value="clear_history">
+                    <button type="submit" class="btn-clear-history"
+                            onclick="return confirm('Clear your search history?')">
+                        <i class="fas fa-trash-alt"></i> Clear My History
+                    </button>
+                </form>
+            {% else %}
+                <p class="no-history">
+                    <i class="fas fa-info-circle"></i>
+                    No search history yet. Start searching for medicines to build your history.
+                </p>
+            {% endif %}
+        </div>
+
+        <!-- ===== CHANGE PASSWORD ===== -->
+        <div class="section-card" data-aos="fade-up" data-aos-delay="150">
+            <h2><i class="fas fa-key"></i> Change My Password</h2>
+
+            <form class="pw-form" method="POST" action="{{ url_for('profile_page') }}">
+                <input type="hidden" name="action" value="change_password">
+
+                <div>
+                    <label for="current_password">Current Password</label>
+                    <div class="pw-input-wrap">
+                        <input type="password" id="current_password" name="current_password"
+                               placeholder="Enter your current password" required autocomplete="current-password">
+                        <button type="button" class="pw-toggle"
+                                onclick="togglePw('current_password', this)" title="Show/hide">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="new_password">New Password</label>
+                    <div class="pw-input-wrap">
+                        <input type="password" id="new_password" name="new_password"
+                               placeholder="Choose a strong new password" required
+                               minlength="4" autocomplete="new-password">
+                        <button type="button" class="pw-toggle"
+                                onclick="togglePw('new_password', this)" title="Show/hide">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="confirm_password">Confirm New Password</label>
+                    <div class="pw-input-wrap">
+                        <input type="password" id="confirm_password" name="confirm_password"
+                               placeholder="Repeat new password" required
+                               minlength="4" autocomplete="new-password">
+                        <button type="button" class="pw-toggle"
+                                onclick="togglePw('confirm_password', this)" title="Show/hide">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-save-pw">
+                    <i class="fas fa-save"></i> Update Password
+                </button>
+            </form>
+        </div>
+
+    </div><!-- /profile-container -->
+</div><!-- /profile-page -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function togglePw(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    }
+</script>
+{% endblock %}

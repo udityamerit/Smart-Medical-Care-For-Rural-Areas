@@ -95,7 +95,10 @@
 
             <div class="user-actions">
                 {% if current_user.is_authenticated %}
-                    <span class="nav-user">Hello, {{ current_user.username }}</span>
+                    <a href="{{ url_for('profile_page') }}" class="profile-nav-link" title="My Profile">
+                        <span class="profile-avatar-mini">{{ current_user.username[:2]|upper }}</span>
+                        <span class="nav-user">{{ current_user.username }}</span>
+                    </a>
                     <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
                 {% else %}
                     <a href="{{ url_for('login_page') }}" class="login-button">Login/Sign Up</a>
