@@ -1,5 +1,7 @@
 import os
+import hashlib
 import secrets
+import shutil
 import threading
 import uuid
 import tempfile
@@ -31,76 +33,88 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 # ---------------------------------------------------------------
-# SECRET KEY — must be strong, random, and loaded from env.
-# A weak/hardcoded key lets attackers forge session cookies and
-# log in as any user without a password.
+# SECRET KEY — stable across restarts so existing cookies stay valid.
+#
+# PRIORITY ORDER:
+#   1. SECRET_KEY env variable (set as HF Space Secret — most secure)
+#   2. Stable HMAC key derived from SPACE_ID (survives restarts on same Space)
+#   3. Random per-session key (local dev only — users log out on restart)
+#
+# WHY THIS MATTERS: If the key changes every restart, all session cookies
+# become invalid → every user is instantly logged out on every reboot.
 # ---------------------------------------------------------------
-_fallback_key = secrets.token_hex(32)   # random each restart (safe fallback only)
-app.secret_key = os.environ.get('SECRET_KEY', _fallback_key)
+_space_id = os.environ.get('SPACE_ID', '')
+if os.environ.get('SECRET_KEY'):
+    # Best: explicit secret set by admin
+    app.secret_key = os.environ['SECRET_KEY']
+elif _space_id:
+    # Good: deterministic key derived from Space ID — survives container restarts
+    app.secret_key = hashlib.sha256(
+        f"aiopharmacy-stable-secret-v2-{_space_id}".encode()
+    ).hexdigest()
+else:
+    # Fallback for local dev: random per-session (users log out on restart, acceptable locally)
+    app.secret_key = secrets.token_hex(32)
 
 # ---------------------------------------------------------------
 # SESSION ISOLATION — every browser gets its own signed cookie.
 # These flags prevent one user's session leaking to another.
 # ---------------------------------------------------------------
-app.config['SESSION_COOKIE_HTTPONLY'] = True      # JS cannot read the cookie
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'     # blocks cross-site cookie sending
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # sessions expire in 24h
-app.config['SESSION_COOKIE_NAME'] = 'aiopharmacy_session'  # unique cookie name
+app.config['SESSION_COOKIE_HTTPONLY'] = True       # JS cannot read the cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'      # blocks cross-site cookie sending
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)   # sessions last 30 days
+app.config['SESSION_COOKIE_NAME'] = 'aiopharmacy_session'       # unique cookie name
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+# Remember-me cookie: persists across browser closes for 30 days
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_NAME'] = 'aiopharmacy_remember'
+
 CORS(app)
 
 # Hugging Face Spaces runs behind HTTPS — enable Secure flag so
 # cookies are only sent over encrypted connections.
-if os.environ.get('SPACE_ID'):
+if _space_id:
     app.config['SESSION_COOKIE_SAMESITE'] = 'None'   # needed for iframe embed on HF
     app.config['SESSION_COOKIE_SECURE'] = True        # HTTPS only
+    app.config['REMEMBER_COOKIE_SECURE'] = True
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login_page'
+login_manager.login_message = 'Please log in to access AIOPharmacy.'
 login_manager.login_message_category = 'info'
 
-# --- User Model and Persistent Storage ---
-SPACE_ID = os.environ.get("SPACE_ID")
-HF_TOKEN = os.environ.get("HF_TOKEN")
-USERS_FILE = 'users.json'
+# ---------------------------------------------------------------
+# PERSISTENT USER STORAGE
+#
+# Hugging Face Docker Spaces provide a persistent /data directory
+# that survives container restarts and sleeps. We store users.json
+# there so accounts are never lost on reboot.
+#
+# CRITICAL: The OLD approach (sync_users_to_space / push to Space git repo)
+# was BROKEN — every git push triggered a full container REBUILD which
+# would restart the app and log everyone out. That approach is removed.
+#
+# Storage priority:
+#   1. /data/users.json  — HF Spaces persistent volume (survives restarts)
+#   2. ./users.json      — local development fallback
+# ---------------------------------------------------------------
+_DATA_DIR = '/data' if os.path.isdir('/data') else '.'
+USERS_FILE = os.path.join(_DATA_DIR, 'users.json')
 
-def sync_users_from_space():
-    if SPACE_ID and HF_TOKEN:
-        try:
-            print(f"Syncing users.json from Hugging Face Space: {SPACE_ID}")
-            from huggingface_hub import hf_hub_download
-            import shutil
-            downloaded_path = hf_hub_download(
-                repo_id=SPACE_ID,
-                filename="users.json",
-                repo_type="space",
-                token=HF_TOKEN
-            )
-            shutil.copy(downloaded_path, USERS_FILE)
-            print("Successfully synced users.json from Space repository.")
-        except Exception as e:
-            print(f"No existing users.json found in Space or error downloading: {e}")
+# On first boot, if persistent storage is empty, seed from the bundled users.json
+_BUNDLED_USERS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.json')
+if not os.path.exists(USERS_FILE) and os.path.exists(_BUNDLED_USERS) and _DATA_DIR != '.':
+    try:
+        shutil.copy(_BUNDLED_USERS, USERS_FILE)
+        print(f'Seeded {USERS_FILE} from bundled users.json')
+    except Exception as _e:
+        print(f'Could not seed users.json: {_e}')
 
-def sync_users_to_space():
-    if SPACE_ID and HF_TOKEN and os.path.exists(USERS_FILE):
-        try:
-            from huggingface_hub import HfApi
-            api = HfApi()
-            api.upload_file(
-                path_or_fileobj=USERS_FILE,
-                path_in_repo="users.json",
-                repo_id=SPACE_ID,
-                repo_type="space",
-                token=HF_TOKEN
-            )
-            print("Successfully uploaded and persisted users.json to Space repository.")
-        except Exception as e:
-            print(f"Error persisting users.json to Space repository: {e}")
-
-# Load initial user database from space storage
-sync_users_from_space()
+print(f'[AIOPharmacy] User database: {USERS_FILE}')
 
 class User(UserMixin):
     def __init__(self, id, username, password_hash, search_history=None):
@@ -129,6 +143,18 @@ def _load_users_unsafe() -> dict:
             data = json.load(f)
         users_dict = {}
         migrated = False
+
+        # --- Migration: integer keys (old format) → UUID keys ---
+        # Old accounts had sequential integer keys like "1", "2".
+        # These must be upgraded to UUIDs so Flask-Login can reliably
+        # look them up across worker processes.
+        old_int_keys = [k for k in data if k.isdigit()]
+        for old_key in old_int_keys:
+            new_key = str(uuid.uuid4())
+            data[new_key] = data.pop(old_key)
+            migrated = True
+            print(f'Migrated user key {old_key!r} → {new_key!r}')
+
         for uid, d in data.items():
             stored = d.get('password', '')
             if _is_plain_text_password(stored):
@@ -138,7 +164,7 @@ def _load_users_unsafe() -> dict:
             users_dict[uid] = User(uid, d['username'], stored, d.get('search_history', []))
         if migrated:
             _write_users_unsafe(users_dict)
-            print('Migrated plain-text passwords to hashes.')
+            print('User database migration complete (keys/passwords updated).')
         return users_dict
     except (json.JSONDecodeError, Exception) as e:
         print(f'Error loading users: {e}')
@@ -148,6 +174,7 @@ def _write_users_unsafe(users_dict: dict) -> None:
     """
     Atomic write: serialise to a temp file then os.replace() so a crash
     mid-write can NEVER leave users.json in a corrupted state.
+    Writes to the persistent /data directory on HF Spaces.
     MUST be called while holding _users_lock.
     """
     payload = {
@@ -159,6 +186,8 @@ def _write_users_unsafe(users_dict: dict) -> None:
         for uid, u in users_dict.items()
     }
     dir_ = os.path.dirname(os.path.abspath(USERS_FILE)) or '.'
+    # Ensure directory exists (important for /data on first boot)
+    os.makedirs(dir_, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=dir_, suffix='.tmp')
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -170,8 +199,8 @@ def _write_users_unsafe(users_dict: dict) -> None:
         except OSError:
             pass
         raise
-    # Persist to HF Space in background so it doesn't block the request
-    threading.Thread(target=sync_users_to_space, daemon=True).start()
+    # NOTE: No HF git-push here — that triggered container rebuilds and logged everyone out.
+    # The /data directory persists automatically across restarts on HF Docker Spaces.
 
 # ---- Public thread-safe helpers (use these everywhere in routes) ----
 
@@ -303,8 +332,11 @@ def login_page():
                 if err:
                     flash(err, 'danger')
                 else:
-                    login_user(new_user)
-                    flash('Account created successfully! You are now logged in.', 'success')
+                    # remember=True: sets a persistent cookie lasting 30 days
+                    # so the user stays logged in across browser restarts and
+                    # container reboots (as long as SECRET_KEY stays stable).
+                    login_user(new_user, remember=True)
+                    flash('Account created successfully! Welcome to AIOPharmacy 🎉', 'success')
                     return redirect(url_for('recommender_page'))
 
         elif 'login_submit' in request.form:
@@ -314,11 +346,11 @@ def login_page():
             user = get_user_by_username(username)
 
             if user and check_password_hash(user.password_hash, password):
-                login_user(user)
-                flash('Logged in successfully.', 'success')
+                login_user(user, remember=True)  # persistent 30-day cookie
+                flash('Welcome back! You are now logged in.', 'success')
                 return redirect(url_for('recommender_page'))
             else:
-                flash('Invalid username or password.', 'danger')
+                flash('Invalid username or password. Please try again.', 'danger')
 
     return render_template('login.html', active_form=active_form)
 

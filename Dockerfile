@@ -27,6 +27,15 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 # Copy the rest of the application files
 COPY . .
 
+# ---------------------------------------------------------------
+# Persistent user storage — /data survives container restarts on
+# Hugging Face Docker Spaces. Create the directory and copy the
+# seed users.json so it's available on first boot.
+# Note: if /data is already populated from a previous run,
+# the app's startup logic will NOT overwrite it.
+# ---------------------------------------------------------------
+RUN mkdir -p /data && cp users.json /data/users.json
+
 # Expose the application port
 EXPOSE 7860
 
