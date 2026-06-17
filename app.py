@@ -3,6 +3,7 @@ import hashlib
 import secrets
 import shutil
 import threading
+import time
 import uuid
 import tempfile
 from datetime import timedelta
@@ -10,6 +11,14 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import logging
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
+# Load .env for local development (no-op in production if vars already set)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=False)  # override=False: env vars already set take priority
+    print('[AIOPharmacy] Loaded .env file')
+except ImportError:
+    pass
 
 import csv
 import math
@@ -88,33 +97,91 @@ login_manager.login_message = 'Please log in to access AIOPharmacy.'
 login_manager.login_message_category = 'info'
 
 # ---------------------------------------------------------------
-# PERSISTENT USER STORAGE
+# PERSISTENT USER STORAGE  
 #
-# Hugging Face Docker Spaces provide a persistent /data directory
-# that survives container restarts and sleeps. We store users.json
-# there so accounts are never lost on reboot.
+# Storage architecture (in priority order):
 #
-# CRITICAL: The OLD approach (sync_users_to_space / push to Space git repo)
-# was BROKEN — every git push triggered a full container REBUILD which
-# would restart the app and log everyone out. That approach is removed.
+# 1. HF DATASET REPO (primary, fully persistent)
+#    Push/pull to a DATASET repo (repo_type='dataset').
+#    CRITICAL: Dataset pushes do NOT trigger Space rebuilds!
+#    This is the only safe way to persist data across HF restarts.
+#    Requires: HF_TOKEN + DATASET_ID env vars.
 #
-# Storage priority:
-#   1. /data/users.json  — HF Spaces persistent volume (survives restarts)
-#   2. ./users.json      — local development fallback
+# 2. LOCAL FILE CACHE (secondary, fast reads)
+#    /data on HF paid tier, or ./ locally.
+#    Acts as a write-through cache — fast reads, synced to dataset on write.
+#
+# WHY NOT SPACE GIT REPO:
+#    Pushing to the Space repo triggers a full container rebuild + restart.
+#    This was the original bug causing everyone to be logged out.
 # ---------------------------------------------------------------
-_DATA_DIR = '/data' if os.path.isdir('/data') else '.'
+_HF_TOKEN  = os.environ.get('HF_TOKEN', '')
+_DATASET_ID = os.environ.get('DATASET_ID', '')   # e.g. "udityanarayan/aiopharmacy-data"
+_DATA_DIR  = '/data' if os.path.isdir('/data') else '.'
 USERS_FILE = os.path.join(_DATA_DIR, 'users.json')
 
-# On first boot, if persistent storage is empty, seed from the bundled users.json
+# Debounce: track last dataset push to avoid flooding API on search-history writes
+_last_dataset_sync: float = 0.0
+_DATASET_SYNC_MIN_INTERVAL = 30.0   # seconds between dataset pushes
+
+def _sync_users_from_dataset() -> None:
+    """Download users.json from HF Dataset on startup. Thread-safe startup call."""
+    if not (_HF_TOKEN and _DATASET_ID):
+        print('[AIOPharmacy] No DATASET_ID/HF_TOKEN — skipping dataset sync (local mode)')
+        return
+    try:
+        from huggingface_hub import hf_hub_download
+        downloaded = hf_hub_download(
+            repo_id=_DATASET_ID,
+            filename='users.json',
+            repo_type='dataset',   # dataset push — NO Space rebuild triggered
+            token=_HF_TOKEN,
+            force_download=True    # always pull latest on startup
+        )
+        shutil.copy(downloaded, USERS_FILE)
+        print(f'[AIOPharmacy] Synced users.json from dataset {_DATASET_ID}')
+    except Exception as e:
+        print(f'[AIOPharmacy] Dataset sync on startup failed (using local): {e}')
+
+def _sync_users_to_dataset(important: bool = False) -> None:
+    """
+    Push users.json to HF Dataset (does NOT trigger Space rebuilds).
+    For unimportant writes (e.g. search history), debounces to once per 30s.
+    For important writes (e.g. new account, password change), always syncs immediately.
+    """
+    global _last_dataset_sync
+    if not (_HF_TOKEN and _DATASET_ID and os.path.exists(USERS_FILE)):
+        return
+    now = time.time()
+    if not important and (now - _last_dataset_sync) < _DATASET_SYNC_MIN_INTERVAL:
+        return   # debounced — skip this write
+    _last_dataset_sync = now
+    try:
+        from huggingface_hub import HfApi
+        HfApi().upload_file(
+            path_or_fileobj=USERS_FILE,
+            path_in_repo='users.json',
+            repo_id=_DATASET_ID,
+            repo_type='dataset',   # CRITICAL: dataset, not space — no rebuild!
+            token=_HF_TOKEN,
+            commit_message='AIOPharmacy: user DB update'
+        )
+        print(f'[AIOPharmacy] Synced users.json to dataset {_DATASET_ID}')
+    except Exception as e:
+        print(f'[AIOPharmacy] Warning: could not sync users to dataset: {e}')
+
+# On first boot, if local cache is empty, seed from bundled users.json
 _BUNDLED_USERS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.json')
 if not os.path.exists(USERS_FILE) and os.path.exists(_BUNDLED_USERS) and _DATA_DIR != '.':
     try:
         shutil.copy(_BUNDLED_USERS, USERS_FILE)
-        print(f'Seeded {USERS_FILE} from bundled users.json')
+        print(f'[AIOPharmacy] Seeded {USERS_FILE} from bundled users.json')
     except Exception as _e:
-        print(f'Could not seed users.json: {_e}')
+        print(f'[AIOPharmacy] Could not seed users.json: {_e}')
 
-print(f'[AIOPharmacy] User database: {USERS_FILE}')
+# Pull latest user DB from dataset (important: runs before any request)
+_sync_users_from_dataset()
+print(f'[AIOPharmacy] User database path: {USERS_FILE}')
 
 class User(UserMixin):
     def __init__(self, id, username, password_hash, search_history=None):
@@ -199,8 +266,13 @@ def _write_users_unsafe(users_dict: dict) -> None:
         except OSError:
             pass
         raise
-    # NOTE: No HF git-push here — that triggered container rebuilds and logged everyone out.
-    # The /data directory persists automatically across restarts on HF Docker Spaces.
+    # Persist to HF Dataset in a non-blocking background thread.
+    # important=True so new writes (registration, password change) sync immediately.
+    threading.Thread(
+        target=_sync_users_to_dataset,
+        kwargs={'important': True},
+        daemon=True
+    ).start()
 
 # ---- Public thread-safe helpers (use these everywhere in routes) ----
 
@@ -242,19 +314,59 @@ def update_user_password(user_id: str, new_password: str) -> bool:
         return True
 
 def update_user_history(user_id: str, history: list) -> bool:
-    """Persist updated search history for a single user. Thread-safe."""
+    """
+    Persist updated search history for a single user. Thread-safe.
+    Uses a debounced (non-important) dataset sync so search queries
+    don't flood the HF Dataset API — syncs at most once per 30 seconds.
+    """
     with _users_lock:
         users = _load_users_unsafe()
         if user_id not in users:
             return False
         users[user_id].search_history = history
-        _write_users_unsafe(users)
+        # Write locally (fast) but use debounced dataset sync
+        payload = {
+            uid: {
+                'username': u.username,
+                'password': u.password_hash,
+                'search_history': u.search_history
+            }
+            for uid, u in users.items()
+        }
+        dir_ = os.path.dirname(os.path.abspath(USERS_FILE)) or '.'
+        os.makedirs(dir_, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_, suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=4)
+            os.replace(tmp_path, USERS_FILE)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        # Debounced background sync — not critical, history loss on restart is acceptable
+        threading.Thread(
+            target=_sync_users_to_dataset,
+            kwargs={'important': False},
+            daemon=True
+        ).start()
         return True
 
 @login_manager.user_loader
 def load_user(user_id):
     """Flask-Login callback — called on every authenticated request."""
     return get_user_by_id(user_id)
+
+@app.before_request
+def make_session_permanent():
+    """
+    Mark every session as permanent so Flask respects PERMANENT_SESSION_LIFETIME (30 days).
+    Without this, PERMANENT_SESSION_LIFETIME is ignored and sessions expire
+    when the browser tab closes — causing apparent 'logouts' at any browser close.
+    """
+    from flask import session
+    session.permanent = True
 
 # --- Load Model Components ---
 DATAFRAME_FILE = 'processed_data.pkl'

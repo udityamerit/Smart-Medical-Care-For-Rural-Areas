@@ -17,3 +17,4 @@ langchain
 langchain-community
 langchain-google-genai
 beautifulsoup4
+huggingface_hub
