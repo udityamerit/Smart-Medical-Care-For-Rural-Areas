@@ -1,5 +1,8 @@
 import os
 import secrets
+import threading
+import uuid
+import tempfile
 from datetime import timedelta
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -103,70 +106,126 @@ class User(UserMixin):
     def __init__(self, id, username, password_hash, search_history=None):
         self.id = id
         self.username = username
-        self.password_hash = password_hash  # Always store the hashed password, never plain-text
+        self.password_hash = password_hash
         self.search_history = search_history if search_history is not None else []
 
+# ---------------------------------------------------------------
+# THREAD-SAFE USER STORAGE
+# A single RLock serialises ALL reads and writes to users.json.
+# This prevents race conditions when multiple users act at once.
+# ---------------------------------------------------------------
+_users_lock = threading.RLock()
+
 def _is_plain_text_password(value: str) -> bool:
-    """Detect if a stored value is a plain-text password (not a werkzeug hash)."""
+    """Detect plain-text password (not a werkzeug hash)."""
     return not value.startswith(('pbkdf2:', 'scrypt:', 'bcrypt:', '$2b$'))
 
-def load_users():
+def _load_users_unsafe() -> dict:
+    """Load users from disk. MUST be called while holding _users_lock."""
     if not os.path.exists(USERS_FILE):
         return {}
     try:
-        with open(USERS_FILE, 'r') as f:
-            users_data = json.load(f)
-        
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         users_dict = {}
         migrated = False
-        for uid, data in users_data.items():
-            stored = data.get('password', '')
-            # Migrate legacy plain-text passwords to hashes on first load
+        for uid, d in data.items():
+            stored = d.get('password', '')
             if _is_plain_text_password(stored):
                 stored = generate_password_hash(stored)
-                users_data[uid]['password'] = stored
+                data[uid]['password'] = stored
                 migrated = True
-            users_dict[uid] = User(uid, data['username'], stored, data.get('search_history', []))
-        
-        # Persist migrated hashes back to disk immediately
+            users_dict[uid] = User(uid, d['username'], stored, d.get('search_history', []))
         if migrated:
-            with open(USERS_FILE, 'w') as f:
-                json.dump(users_data, f, indent=4)
-            print("Migrated plain-text passwords to hashed passwords in users.json.")
-        
+            _write_users_unsafe(users_dict)
+            print('Migrated plain-text passwords to hashes.')
         return users_dict
-    except json.JSONDecodeError:
-        print("Error: users.json is corrupted or empty. Creating a new one.")
-        return {}
-    except Exception as e:
-        print(f"Error loading users: {e}")
+    except (json.JSONDecodeError, Exception) as e:
+        print(f'Error loading users: {e}')
         return {}
 
-
-def save_users(users_dict):
-    try:
-        # Always save the password_hash field — never a plain-text password
-        users_data = {
-            uid: {
-                'username': user.username,
-                'password': user.password_hash,
-                'search_history': user.search_history
-            }
-            for uid, user in users_dict.items()
+def _write_users_unsafe(users_dict: dict) -> None:
+    """
+    Atomic write: serialise to a temp file then os.replace() so a crash
+    mid-write can NEVER leave users.json in a corrupted state.
+    MUST be called while holding _users_lock.
+    """
+    payload = {
+        uid: {
+            'username': u.username,
+            'password': u.password_hash,
+            'search_history': u.search_history
         }
-        with open(USERS_FILE, 'w') as f:
-            json.dump(users_data, f, indent=4)
-        sync_users_to_space()
-    except Exception as e:
-        print(f"Error saving users: {e}")
+        for uid, u in users_dict.items()
+    }
+    dir_ = os.path.dirname(os.path.abspath(USERS_FILE)) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=dir_, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, indent=4)
+        os.replace(tmp_path, USERS_FILE)   # atomic on POSIX and Windows
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    # Persist to HF Space in background so it doesn't block the request
+    threading.Thread(target=sync_users_to_space, daemon=True).start()
 
-users = load_users()
+# ---- Public thread-safe helpers (use these everywhere in routes) ----
+
+def get_user_by_id(user_id: str):
+    """Return a User or None. Safe for concurrent calls."""
+    with _users_lock:
+        return _load_users_unsafe().get(user_id)
+
+def get_user_by_username(username: str):
+    """Return a User or None. Safe for concurrent calls."""
+    with _users_lock:
+        users = _load_users_unsafe()
+        return next((u for u in users.values() if u.username == username), None)
+
+def create_user(username: str, password: str):
+    """
+    Atomically create a new user.
+    Returns (User, None) on success or (None, error_message) on failure.
+    UUID-based IDs eliminate the len()+1 race condition.
+    """
+    with _users_lock:
+        users = _load_users_unsafe()
+        if any(u.username == username for u in users.values()):
+            return None, 'Username already exists. Please choose another.'
+        new_id = str(uuid.uuid4())
+        new_user = User(new_id, username, generate_password_hash(password))
+        users[new_id] = new_user
+        _write_users_unsafe(users)
+        return new_user, None
+
+def update_user_password(user_id: str, new_password: str) -> bool:
+    """Hash and save a new password for a single user. Thread-safe."""
+    with _users_lock:
+        users = _load_users_unsafe()
+        if user_id not in users:
+            return False
+        users[user_id].password_hash = generate_password_hash(new_password)
+        _write_users_unsafe(users)
+        return True
+
+def update_user_history(user_id: str, history: list) -> bool:
+    """Persist updated search history for a single user. Thread-safe."""
+    with _users_lock:
+        users = _load_users_unsafe()
+        if user_id not in users:
+            return False
+        users[user_id].search_history = history
+        _write_users_unsafe(users)
+        return True
 
 @login_manager.user_loader
 def load_user(user_id):
-    global users
-    users = load_users()  # Dynamically reload users from disk to support multi-process environments
-    return users.get(user_id)
+    """Flask-Login callback — called on every authenticated request."""
+    return get_user_by_id(user_id)
 
 # --- Load Model Components ---
 DATAFRAME_FILE = 'processed_data.pkl'
@@ -227,48 +286,40 @@ def medicines_showcase_page():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
-    global users
-    users = load_users()  # Dynamically reload users from disk to support multi-process environments
-    
     if current_user.is_authenticated:
         return redirect(url_for('recommender_page'))
-    
+
     active_form = None
     if request.method == 'POST':
         if 'signup_submit' in request.form:
             active_form = 'signup'
-            username = request.form.get('username')
-            password = request.form.get('password')
-            
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+
             if not username or not password:
                 flash('Username and password are required.', 'danger')
-            elif username in [u.username for u in users.values()]:
-                flash('Username already exists. Please choose another.', 'danger')
             else:
-                new_id = str(len(users) + 1)
-                # Hash the password before storing — plain-text passwords are never persisted
-                hashed_pw = generate_password_hash(password)
-                new_user = User(new_id, username, hashed_pw)
-                users[new_id] = new_user
-                save_users(users)
-                login_user(new_user)
-                flash('Account created successfully! You are now logged in.', 'success')
-                return redirect(url_for('recommender_page'))
-                
+                new_user, err = create_user(username, password)
+                if err:
+                    flash(err, 'danger')
+                else:
+                    login_user(new_user)
+                    flash('Account created successfully! You are now logged in.', 'success')
+                    return redirect(url_for('recommender_page'))
+
         elif 'login_submit' in request.form:
             active_form = 'login'
-            username = request.form['username_login']
-            password = request.form['password_login']
-            user = next((u for u in users.values() if u.username == username), None)
-            
-            # Use constant-time hash comparison — never compare plain-text passwords
+            username = request.form.get('username_login', '').strip()
+            password = request.form.get('password_login', '')
+            user = get_user_by_username(username)
+
             if user and check_password_hash(user.password_hash, password):
                 login_user(user)
                 flash('Logged in successfully.', 'success')
                 return redirect(url_for('recommender_page'))
             else:
                 flash('Invalid username or password.', 'danger')
-                
+
     return render_template('login.html', active_form=active_form)
 
 @app.route('/logout')
@@ -282,22 +333,17 @@ def logout():
 @login_required
 def profile_page():
     """
-    Serves only the currently logged-in user's own data.
-    Uses current_user exclusively — never loads or exposes any other user's data.
+    Serves only the currently logged-in user's own data — fully thread-safe.
     """
-    global users
-    users = load_users()
-
     if request.method == 'POST':
         action = request.form.get('action')
 
         if action == 'change_password':
             current_password = request.form.get('current_password', '')
-            new_password = request.form.get('new_password', '')
+            new_password     = request.form.get('new_password', '')
             confirm_password = request.form.get('confirm_password', '')
 
-            # Verify old password against THIS user's hash only
-            me = users.get(current_user.id)
+            me = get_user_by_id(current_user.id)
             if not me:
                 flash('Session error. Please log in again.', 'danger')
                 return redirect(url_for('login_page'))
@@ -309,22 +355,16 @@ def profile_page():
             elif new_password != confirm_password:
                 flash('New passwords do not match.', 'danger')
             else:
-                # Update ONLY this user's hash
-                users[current_user.id].password_hash = generate_password_hash(new_password)
-                save_users(users)
+                update_user_password(current_user.id, new_password)
                 flash('Password changed successfully!', 'success')
 
         elif action == 'clear_history':
-            me = users.get(current_user.id)
-            if me:
-                users[current_user.id].search_history = []
-                save_users(users)
-                flash('Search history cleared.', 'success')
+            update_user_history(current_user.id, [])
+            flash('Search history cleared.', 'success')
 
         return redirect(url_for('profile_page'))
 
-    # Pass ONLY current_user's data to the template — no other user data ever sent
-    me = users.get(current_user.id)
+    me = get_user_by_id(current_user.id)
     return render_template('profile.html',
                            username=me.username if me else current_user.username,
                            search_history=me.search_history if me else [])
@@ -349,18 +389,23 @@ def recommender_page():
 
     recommended_medicines, ai_explanation = get_recommendations(user_query, df, embeddings, vector_store)
     
-    # Manage robust search history to prevent duplicates upon reload
-    if not current_user.search_history or current_user.search_history[-1] != user_query:
-        if user_query in current_user.search_history:
-            current_user.search_history.remove(user_query)
-        current_user.search_history.append(user_query)
-        if len(current_user.search_history) > 5:
-            current_user.search_history.pop(0)
-        save_users(users)
+    # Manage robust search history — read, mutate, and atomically write back to disk
+    me = get_user_by_id(current_user.id)
+    if me:
+        history = list(me.search_history)  # fresh copy from disk
+        if not history or history[-1] != user_query:
+            if user_query in history:
+                history.remove(user_query)
+            history.append(user_query)
+            if len(history) > 5:
+                history.pop(0)
+            update_user_history(current_user.id, history)
+            me.search_history = history  # keep local reference in sync
         
     previous_search_recommendations = pd.DataFrame()
-    # Explicitly pull previous history items (excluding current query)
-    previous_searches = [q for q in current_user.search_history if q != user_query]
+    # Explicitly pull previous history items (excluding current query) — use fresh disk data
+    fresh_history = me.search_history if me else []
+    previous_searches = [q for q in fresh_history if q != user_query]
     if previous_searches:
         previous_search_recommendations = get_previous_search_recommendations(previous_searches, df, embeddings, vector_store)
     
